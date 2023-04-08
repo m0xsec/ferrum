@@ -1,3 +1,6 @@
+mod cpu;
+mod gb;
+mod mmu;
 fn main() {
-    println!("Hello, world!");
+    println!("ferrum -> ...");
 }
