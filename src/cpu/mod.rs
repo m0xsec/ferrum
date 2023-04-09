@@ -55,7 +55,8 @@ impl CPU {
         }
     }
 
-    pub fn test(&mut self) {
+    /// NOTE: This is for testing prohibited memory operations on the MMU. For debugging only.
+    pub fn prohibited_memory_operation_test(&mut self) {
         self.mem.borrow_mut().write(0xFEA0, 0x2C);
     }
 
