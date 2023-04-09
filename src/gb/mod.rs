@@ -1,8 +1,7 @@
 use crate::boot;
 use crate::cpu;
 use crate::mmu;
-use log::info;
-use log::warn;
+use log::{info, warn};
 
 /// The GameBoy DMG-01 (non-color).
 pub struct GameBoy {
