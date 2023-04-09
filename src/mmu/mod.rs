@@ -74,4 +74,23 @@ impl MMU {
             }
         }
     }
+
+    /// Write a value to memory
+    pub fn write(&mut self, addr: u16, val: u8) {
+        match addr {
+            0x0000..=0x3FFF => self.rom0[addr as usize] = val,
+            0x4000..=0x7FFF => self.romx[addr as usize] = val,
+            0x8000..=0x9FFF => self.vram[addr as usize] = val,
+            0xA000..=0xBFFF => self.sram[addr as usize] = val,
+            0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize] = val,
+            0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize] = val,
+            0xFE00..=0xFE9F => self.oam[addr as usize] = val,
+            0xFF00..=0xFF7F => self.io[addr as usize] = val,
+            0xFF80..=0xFFFE => self.hram[addr as usize] = val,
+            0xFFFF => self.ie = val,
+            _ => {
+                warn!("Attempt to write prohibited area of memory, {:#02x}.", addr);
+            }
+        }
+    }
 }
