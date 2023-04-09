@@ -39,5 +39,8 @@ impl GameBoy {
 
         // Load boot ROM
         self.load_boot_rom();
+
+        // NOTE: Testing prohibited memory operation warning log
+        self.mmu.write(0xFEA0, 0x2C);
     }
 }
