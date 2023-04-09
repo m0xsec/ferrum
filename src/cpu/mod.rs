@@ -52,4 +52,8 @@ impl CPU {
             halt: false,
         }
     }
+
+    pub fn test(&mut self) {
+        self.mem.borrow_mut().write(0xFEA0, 0x2C);
+    }
 }
