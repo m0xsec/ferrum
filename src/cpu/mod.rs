@@ -7,6 +7,7 @@ pub struct CPU {
     reg: registers::Registers,
     // Memory
     // TODO: Pointer reference to GB MMU
+    // TODO: Look into implementing a trait for memory... https://github.com/mohanson/gameboy/blob/master/src/mmunit.rs
     /// Clock Cycles
     /// Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
     /// 4.194304 MHz was the highest freq the DMG could run at.
