@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -55,5 +57,10 @@ impl CPU {
 
     pub fn test(&mut self) {
         self.mem.borrow_mut().write(0xFEA0, 0x2C);
+    }
+
+    /// Dumps the current CPU Register values at the info Log level.
+    pub fn dump_registers(&self) {
+        info!("CPU Registers{}", self.reg);
     }
 }

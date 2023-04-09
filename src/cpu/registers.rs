@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use std::fmt;
 
 bitflags!(
     /// The Gameboy Flags Register consists of the following bits:
@@ -126,5 +127,17 @@ impl Registers {
             }
             Reg16::SP => self.sp = value,
         }
+    }
+}
+
+impl fmt::Display for Registers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "\nA:{:02x}\tF:{:04b}\tB:{:02x}\tC:{:02x}\n\
+             D:{:02x}\tE:{:02x}\tH:{:02x}\tL:{:02x}\n\
+             PC:{:04x}\tSP:{:04x}",
+            self.pc, self.sp, self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
+        )
     }
 }

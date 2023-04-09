@@ -45,5 +45,7 @@ impl GameBoy {
         // NOTE: Testing prohibited memory operation warning log
         self.mmu.borrow_mut().write(0xFEA0, 0x2C);
         self.cpu.test();
+
+        self.cpu.dump_registers();
     }
 }
