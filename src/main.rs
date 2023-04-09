@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 
 mod boot;
 mod cpu;
@@ -10,6 +10,7 @@ fn main() {
     info!("ferrum is a WIP. Most functionality is not implemented.");
 
     // TODO: ROM loading, launch the Gameboy emulator threads, etc, etc
-    let mut ferrum = gb::GameBoy::new();
-    ferrum.power_on();
+    let mut ferrum = gb::GameBoy::power_on();
+    ferrum.boot_rom();
+    warn!("Remaining Gameboy boot process is not yet implemented.");
 }

@@ -1,3 +1,6 @@
+use crate::mmu::memory::Memory;
+use std::cell::RefCell;
+use std::rc::Rc;
 mod registers;
 
 /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080
@@ -5,9 +8,10 @@ mod registers;
 pub struct CPU {
     /// Registers
     reg: registers::Registers,
-    // Memory
-    // TODO: Pointer reference to GB MMU
-    // TODO: Look into implementing a trait for memory... https://github.com/mohanson/gameboy/blob/master/src/mmunit.rs
+
+    /// Memory
+    mem: Rc<RefCell<dyn Memory>>,
+
     /// Clock Cycles
     /// Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
     /// 4.194304 MHz was the highest freq the DMG could run at.
@@ -20,7 +24,7 @@ pub struct CPU {
 
 impl CPU {
     /// Initialize the CPU
-    pub fn new() -> Self {
+    pub fn power_on(mem: Rc<RefCell<dyn Memory>>) -> Self {
         Self {
             /*
                 Set initial registers to 0x00 - The DMG-01 power up sequence, per PanDocs, is:
@@ -39,6 +43,7 @@ impl CPU {
                 This should be what the boot ROM does.
             */
             reg: registers::Registers::new(),
+            mem,
 
             // 4.194304 MHz was the highest freq the DMG could run at.
             cycles: 0,

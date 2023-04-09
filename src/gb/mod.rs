@@ -1,7 +1,10 @@
 use crate::boot;
 use crate::cpu;
 use crate::mmu;
-use log::{info, warn};
+use crate::mmu::memory::Memory;
+use log::info;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// The GameBoy DMG-01 (non-color).
 pub struct GameBoy {
@@ -13,33 +16,33 @@ pub struct GameBoy {
     /// The DMG-01 didn't have an actual Memory Management Unit (MMU), but it had a memory-mapped I/O system with a single RAM chip.
     /// To make emulation easier, we will define a MMU.
     /// The MMU is responsible for mapping memory addresses to actual memory locations.
-    mmu: mmu::MMU,
+    mmu: Rc<RefCell<mmu::MMU>>,
 }
 
 impl GameBoy {
-    fn load_boot_rom(&mut self) {
+    /// Loads the Gameboy DMG-01 Boot ROM into memory.
+    fn read_boot_rom(&mut self) {
         info!("Loading boot rom.");
         for (addr, val) in boot::BOOTROM.iter().enumerate() {
-            self.mmu.write(addr as u16, *val);
+            self.mmu.borrow_mut().write(addr as u16, *val);
         }
     }
 }
 
 impl GameBoy {
-    pub fn new() -> Self {
-        Self {
-            cpu: cpu::CPU::new(),
-            mmu: mmu::MMU::new(),
-        }
+    /// Initialize Gameboy Hardware
+    pub fn power_on() -> Self {
+        let mmu = Rc::new(RefCell::new(mmu::MMU::new()));
+        let cpu = cpu::CPU::power_on(mmu.clone());
+        Self { mmu, cpu }
     }
 
-    pub fn power_on(&mut self) {
-        warn!("power_on is not fully implemented.");
-
-        // Load boot ROM
-        self.load_boot_rom();
+    /// Loads the Gameboy DMG-01 Boot ROM
+    pub fn boot_rom(&mut self) {
+        // Read boot ROM into memory
+        self.read_boot_rom();
 
         // NOTE: Testing prohibited memory operation warning log
-        self.mmu.write(0xFEA0, 0x2C);
+        self.mmu.borrow_mut().write(0xFEA0, 0x2C);
     }
 }

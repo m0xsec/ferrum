@@ -1,4 +1,6 @@
+use self::memory::Memory;
 use log::{info, warn};
+pub mod memory;
 
 /// MMU is the Memory Management Unit. While the GameBoy did not have an actual
 /// MMU, it makes sense for our emulator. The GameBoy uses Memory Mapping to talk to
@@ -69,9 +71,11 @@ impl MMU {
             ie: 0x00,
         }
     }
+}
 
+impl Memory for MMU {
     /// Read a value from memory.
-    pub fn read(&mut self, addr: u16) -> u8 {
+    fn read(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x3FFF => self.rom0[addr as usize],
             0x4000..=0x7FFF => self.romx[addr as usize],
@@ -91,7 +95,7 @@ impl MMU {
     }
 
     /// Write a value to memory
-    pub fn write(&mut self, addr: u16, val: u8) {
+    fn write(&mut self, addr: u16, val: u8) {
         info!("MMU Write val --> [addr]: {:#02x} --> [{:#02x}]", val, addr);
         match addr {
             0x0000..=0x3FFF => self.rom0[addr as usize] = val,
