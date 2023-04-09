@@ -4,7 +4,6 @@ mod registers;
 /// https://gbdev.io/gb-opcodes/optables/errata
 pub struct CPU {
     // Registers
-    // TODO: Implement registers
     reg: registers::Registers,
     // Memory
     // TODO: Pointer reference to GB MMU

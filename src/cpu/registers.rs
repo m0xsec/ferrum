@@ -1,7 +1,20 @@
 use bitflags::bitflags;
 
 bitflags!(
-    /// The Flag register consists of the following bits:
+    /// The Gameboy Flags Register consists of the following bits:
+    ///
+    /// Bit: 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+    /// Val: Z | N | H | C | 0 | 0 | 0 | 0 |
+    ///
+    /// Bit 0 - Unused (always 0)
+    /// Bit 1 - Unused (always 0)
+    /// Bit 2 - Unused (always 0)
+    /// Bit 3 - Unused (always 0)
+    /// Bit 4 - Carry Flag (N)
+    /// Bit 5 - Half Carry Flag (H)
+    /// Bit 6 - Subtract Flag (N)
+    /// Bit 7 - Zero Flag (Z)
+    ///
     /// Zero Flag (Z) - Set when the result of a math operation is zero, or two values match when using the CP instruction.
     /// Subtract Flag (N) - This bit is set if a subtraction was performed in the last math instruction.
     /// Half Carry Flag (H) - This bit is set if a carry occurred from the lower nibble in the last math operation.
@@ -14,8 +27,20 @@ bitflags!(
   }
 );
 
-/// The Gameboy has eight 8-bit registers, and two 16-bit registers.
-/// Some 8-bit registers can be combined to be used as 16-bit registers.
+/// Gameboy CPU Registers
+/// Most registers are 8bit, but some can be used as 16bit.
+/// AF, BC, DE, HL are such registers.
+///
+/// A - Accumulator (Used for arithmetic operations)
+/// F - Flags
+/// B - B General Purpose (Can be used as 16 bit register - BC)
+/// C - C General Purpose (Can be used as 16 bit register - BC)
+/// D - D General Purpose (Can be used as 16 bit register - DE)
+/// E - E General Purpose (Can be used as 16 bit register - DE)
+/// H - H General Purpose (Can be used as 16 bit register - HL)
+/// L - L General Purpose (Can be used as 16 bit register - HL)
+/// SP - Stack Pointer
+/// PC - Program Counter
 pub struct Registers {
     /// 8 bit registers
     a: u8,
@@ -28,8 +53,6 @@ pub struct Registers {
     l: u8,
 
     /// 16-bit registers
-    /// sp - Stack pointer.
-    /// pc - Program counter
     sp: u16,
     pc: u16,
 }
