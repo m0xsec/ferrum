@@ -1,5 +1,7 @@
+use crate::boot;
 use crate::cpu;
 use crate::mmu;
+use log::info;
 use log::warn;
 
 /// The GameBoy DMG-01 (non-color).
@@ -18,6 +20,16 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
+    fn load_boot_rom(&mut self) {
+        info!("Loading boot rom.");
+        for (addr, val) in boot::BOOTROM.iter().enumerate() {
+            warn!("Writing to Gameboy memory is not yet implemented.");
+            info!("[{:#02x}] --> {:#02x}", addr, val);
+        }
+    }
+}
+
+impl GameBoy {
     pub fn new() -> Self {
         Self {
             cpu: cpu::CPU::new(),
@@ -26,6 +38,9 @@ impl GameBoy {
     }
 
     pub fn power_on(&mut self) {
-        warn!("gb --> power_on is not implemented.");
+        warn!("power_on is not fully implemented.");
+
+        // Load boot ROM
+        self.load_boot_rom();
     }
 }

@@ -1,5 +1,6 @@
 use log::info;
 
+mod boot;
 mod cpu;
 mod gb;
 mod mmu;

@@ -10,20 +10,40 @@ pub struct CPU {
 
     // Clock Cycles
     // Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
-    //cycles    uint32
-    //maxCycles uint32
-    // TODO: Keep track of clock cycles
+    cycles: u32,
+    max_cycle: u32,
 
     // Halt flag
-    // bool
-    // TODO: CPU Instruction Halt flag
+    halt: bool,
 }
 
 impl CPU {
     /// Initialize the CPU
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
+            /*
+                Set initial registers to 0x00 - The DMG-01 power up sequence, per PanDocs, is:
+                https://gbdev.io/pandocs/Power_Up_Sequence.html
+                A = 0x01
+                F = 0xB0
+                B = 0x00
+                C = 0x13
+                D = 0x00
+                E = 0xD8
+                H = 0x01
+                L = 0x4D
+                PC = 0x0100
+                SP = 0xFFFE
+
+                This should be what the boot ROM does.
+            */
             reg: registers::Registers::new(),
+
+            // 4.194304 MHz was the highest freq the DMG could run at.
+            cycles: 0,
+            max_cycle: 4194304,
+
+            halt: false,
         }
     }
 }
