@@ -3,17 +3,17 @@ mod registers;
 /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080
 /// https://gbdev.io/gb-opcodes/optables/errata
 pub struct CPU {
-    // Registers
+    /// Registers
     reg: registers::Registers,
     // Memory
     // TODO: Pointer reference to GB MMU
-
-    // Clock Cycles
-    // Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
+    /// Clock Cycles
+    /// Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
+    /// 4.194304 MHz was the highest freq the DMG could run at.
     cycles: u32,
     max_cycle: u32,
 
-    // Halt flag
+    /// Halt flag, for stopping CPU operation.
     halt: bool,
 }
 
