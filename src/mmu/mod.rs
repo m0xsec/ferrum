@@ -1,3 +1,5 @@
+use log::warn;
+
 /// MMU is the Memory Management Unit. While the GameBoy did not have an actual
 /// MMU, it makes sense for our emulator. The GameBoy uses Memory Mapping to talk to
 /// various subsystems. The MMU will be responsible for handling that mapping and will
@@ -58,10 +60,18 @@ impl MMU {
         match addr {
             0x0000..=0x3FFF => self.rom0[addr as usize],
             0x4000..=0x7FFF => self.romx[addr as usize],
-            _ => 0xFF,
-            // TODO: Finish each range...
-            //TODO: Make sure to add ECHO range check w/ WRAM
-            //TODO: Make sure to add unused/not allowed range check
+            0x8000..=0x9FFF => self.vram[addr as usize],
+            0xA000..=0xBFFF => self.sram[addr as usize],
+            0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize],
+            0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize],
+            0xFE00..=0xFE9F => self.oam[addr as usize],
+            0xFF00..=0xFF7F => self.io[addr as usize],
+            0xFF80..=0xFFFE => self.hram[addr as usize],
+            0xFFFF => self.ie,
+            _ => {
+                warn!("Attempt to read prohibited area of memory, {:#02x}.", addr);
+                0xFF
+            }
         }
     }
 }
