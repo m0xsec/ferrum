@@ -2,10 +2,10 @@ mod registers;
 
 /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080
 /// https://gbdev.io/gb-opcodes/optables/errata
-pub(crate) struct CPU {
+pub struct CPU {
     // Registers
     // TODO: Implement registers
-
+    reg: registers::Registers,
     // Memory
     // TODO: Pointer reference to GB MMU
 
@@ -18,4 +18,13 @@ pub(crate) struct CPU {
     // Halt flag
     // bool
     // TODO: CPU Instruction Halt flag
+}
+
+impl CPU {
+    /// Initialize the CPU
+    pub(crate) fn new() -> Self {
+        Self {
+            reg: registers::Registers::new(),
+        }
+    }
 }
