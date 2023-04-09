@@ -23,8 +23,7 @@ impl GameBoy {
     fn load_boot_rom(&mut self) {
         info!("Loading boot rom.");
         for (addr, val) in boot::BOOTROM.iter().enumerate() {
-            warn!("Writing to Gameboy memory is not yet implemented.");
-            info!("[{:#02x}] --> {:#02x}", addr, val);
+            self.mmu.write(addr as u16, *val);
         }
     }
 }
@@ -33,7 +32,7 @@ impl GameBoy {
     pub fn new() -> Self {
         Self {
             cpu: cpu::CPU::new(),
-            mmu: mmu::MMU {},
+            mmu: mmu::MMU::new(),
         }
     }
 
