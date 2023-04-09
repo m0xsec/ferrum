@@ -1,7 +1,19 @@
 {
     "cSpell.words": [
+        "BFFF",
         "bitflags",
         "BOOTROM",
-        "Gameboy"
+        "DDFF",
+        "DFFF",
+        "FDFF",
+        "FEFF",
+        "FFFE",
+        "Gameboy",
+        "HRAM",
+        "ROMX",
+        "SRAM",
+        "VRAM",
+        "WRAM",
+        "WRAMX"
     ]
 }

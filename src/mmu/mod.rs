@@ -1,3 +1,67 @@
-/// MMU - Memory Management Unit.
-/// While the Gameboy did not have an actual MMU, implementing one will make things easier for us.
-pub struct MMU {}
+/// MMU is the Memory Management Unit. While the GameBoy did not have an actual
+/// MMU, it makes sense for our emulator. The GameBoy uses Memory Mapping to talk to
+/// various subsystems. The MMU will be responsible for handling that mapping and will
+/// be the only thing to actually access the memory directly.
+///
+/// The Game Boy has a 16-bit address bus, which is used to address ROM, RAM, and I/O.
+///
+/// Start	End		Description						Notes
+/// 0000	3FFF	16 KiB ROM bank 00				From cartridge, usually a fixed bank
+/// 4000	7FFF	16 KiB ROM Bank 01~NN			From cartridge, switchable bank via mapper (if any)
+/// 8000	9FFF	8 KiB Video RAM (VRAM)			In CGB mode, switchable bank 0/1
+/// A000	BFFF	8 KiB External RAM				From cartridge, switchable bank if any
+/// C000	CFFF	4 KiB Work RAM (WRAM)
+/// D000	DFFF	4 KiB Work RAM (WRAM)			In CGB mode, switchable bank 1~7
+/// E000	FDFF	Mirror of C000~DDFF (ECHO RAM)	Nintendo says use of this area is prohibited.
+/// FE00	FE9F	Sprite attribute table (OAM)
+/// FEA0	FEFF	Not Usable						Nintendo says use of this area is prohibited
+/// FF00	FF7F	I/O Registers
+/// FF80	FFFE	High RAM (HRAM)
+/// FFFF	FFFF	Interrupt Enable register (IE)
+///
+/// https://gbdev.io/pandocs/Memory_Map.html
+pub struct MMU {
+    /// ROM Bank 00 - From cartridge, usually a fixed bank.
+    rom0: [u8; 0x3FFF - 0x0000],
+
+    /// ROM Bank 01~NN - From cartridge, switchable bank via mapper (if any).
+    romx: [u8; 0x7FFF - 0x4000],
+
+    /// Video RAM (VRAM) - In CGB mode, switchable bank 0/1.
+    vram: [u8; 0x9FFF - 0x8000],
+
+    /// External RAM (SRAM) - From cartridge, switchable bank (if any).
+    sram: [u8; 0xBFFF - 0xA000],
+
+    /// Work RAM Bank 00 (WRAM).
+    wram0: [u8; 0xCFFF - 0xC000],
+
+    /// Work RAM Bank 01~07 (WRAMX) - In CGB mode, switchable bank.
+    wramx: [u8; 0xDFFF - 0xD000],
+
+    /// Sprite attribute table (OAM).
+    oam: [u8; 0xFE9F - 0xFE00],
+
+    /// I/O Registers.
+    io: [u8; 0xFF7F - 0xFF00],
+
+    /// High RAM (HRAM).
+    hram: [u8; 0xFFFE - 0xFF80],
+
+    ///Interrupt Enable register (IE)
+    ie: u8,
+}
+
+impl MMU {
+    /// Read a value from memory.
+    pub fn read(&mut self, addr: u16) -> u8 {
+        match addr {
+            0x0000..=0x3FFF => self.rom0[addr as usize],
+            0x4000..=0x7FFF => self.romx[addr as usize],
+            _ => 0xFF,
+            // TODO: Finish each range...
+            //TODO: Make sure to add ECHO range check w/ WRAM
+            //TODO: Make sure to add unused/not allowed range check
+        }
+    }
+}
