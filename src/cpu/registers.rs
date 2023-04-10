@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use log::warn;
 use std::fmt;
 
 bitflags!(
@@ -158,6 +159,16 @@ impl Registers {
             Reg16::SP => self.sp = val,
             Reg16::PC => self.pc = val,
         }
+    }
+
+    /// Handles safe incrementing for the Program Counter (PC) register.
+    pub fn inc_pc(&mut self, inc: u16) {
+        let (_, overflow) = self.pc.overflowing_add(inc);
+        if overflow {
+            //panic!("PC OVERFLOW");
+            warn!("PC Register Overflow, wrapping to prevent panic.")
+        }
+        self.pc = self.pc.wrapping_add(inc);
     }
 }
 

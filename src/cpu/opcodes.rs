@@ -13,14 +13,12 @@ impl CPU {
         match op {
             0x00 => {
                 info!("NOP");
-                let pc = self.reg.read16(Reg16::PC) + 1;
-                self.reg.write16(Reg16::PC, pc);
+                self.reg.inc_pc(1);
                 4
             }
             _ => {
                 warn!("opcode not implemented: {:#02x}.", op);
-                let pc = self.reg.read16(Reg16::PC) + 1;
-                self.reg.write16(Reg16::PC, pc);
+                self.reg.inc_pc(1);
                 0
             }
         }
