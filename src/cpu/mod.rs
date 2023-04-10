@@ -1,9 +1,10 @@
-use log::info;
+use log::{info, warn};
 
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
 use std::rc::Rc;
-pub mod registers;
+mod opcodes;
+mod registers;
 
 /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080
 /// https://gbdev.io/gb-opcodes/optables/errata
@@ -18,10 +19,19 @@ pub struct CPU {
     /// Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
     /// 4.194304 MHz was the highest freq the DMG could run at.
     cycles: u32,
-    max_cycle: u32,
+    max_cycles: u32,
 
     /// Halt flag, for stopping CPU operation.
     halt: bool,
+}
+
+impl CPU {
+    /// Fetches the next opcode from memory
+    fn fetch(&self) -> u8 {
+        self.mem
+            .borrow()
+            .read(self.reg.read16(registers::Reg16::PC))
+    }
 }
 
 impl CPU {
@@ -49,9 +59,24 @@ impl CPU {
 
             // 4.194304 MHz was the highest freq the DMG could run at.
             cycles: 0,
-            max_cycle: 4194304,
+            max_cycles: 4194304,
 
             halt: false,
+        }
+    }
+
+    /// Cycle the CPU for a single instruction - Fetch, decode, execute
+    pub fn cycle(&mut self) {
+        if !self.halt {
+            let op = self.fetch();
+            self.cycles += self.execute(op);
+        }
+
+        if self.cycles > self.max_cycles {
+            warn!("Max CPU Cycles detected, though not yet implemented.");
+            info!("Enforcing 4.194304 Mhz");
+            // TODO: Sleep for 1 second
+            self.cycles = 0;
         }
     }
 

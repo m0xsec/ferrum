@@ -2,7 +2,7 @@ use crate::boot;
 use crate::cpu;
 use crate::mmu;
 use crate::mmu::memory::Memory;
-use log::info;
+use log::{info, warn};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -47,5 +47,13 @@ impl GameBoy {
         self.cpu.prohibited_memory_operation_test();
 
         self.cpu.dump_registers();
+    }
+
+    /// Run Gameboy emulation
+    pub fn run(&mut self) {
+        warn!("Emulation loop is a work in progress, no threading or event handling.");
+        loop {
+            self.cpu.cycle();
+        }
     }
 }
