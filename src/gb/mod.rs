@@ -1,6 +1,5 @@
 use crate::boot;
 use crate::cpu;
-use crate::cpu::registers;
 use crate::mmu;
 use crate::mmu::memory::Memory;
 use log::info;
@@ -27,7 +26,6 @@ impl GameBoy {
         for (addr, val) in boot::BOOTROM.iter().enumerate() {
             self.mmu.borrow_mut().write(addr as u16, *val);
         }
-        self.cpu.reg.write16(registers::Reg16::PC, 0x0000);
     }
 }
 

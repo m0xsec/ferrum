@@ -83,16 +83,16 @@ pub enum Reg16 {
 impl Registers {
     pub fn new() -> Self {
         Self {
-            a: 0,
-            b: 0,
-            c: 0,
-            d: 0,
-            e: 0,
+            a: 0x00,
+            b: 0x00,
+            c: 0x00,
+            d: 0x00,
+            e: 0x00,
             f: Flags::empty(),
-            h: 0,
-            l: 0,
-            sp: 0,
-            pc: 0,
+            h: 0x00,
+            l: 0x00,
+            sp: 0x0000,
+            pc: 0x0000,
         }
     }
 

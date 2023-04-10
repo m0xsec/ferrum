@@ -9,7 +9,7 @@ pub mod registers;
 /// https://gbdev.io/gb-opcodes/optables/errata
 pub struct CPU {
     /// Registers
-    pub reg: registers::Registers,
+    reg: registers::Registers,
 
     /// Memory
     mem: Rc<RefCell<dyn Memory>>,
