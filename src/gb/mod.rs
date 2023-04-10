@@ -53,6 +53,7 @@ impl GameBoy {
     pub fn run(&mut self) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
         loop {
+            self.cpu.dump_registers();
             self.cpu.cycle();
         }
     }

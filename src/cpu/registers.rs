@@ -179,7 +179,7 @@ impl fmt::Display for Registers {
             "\nA:{:02x}\tF:{:04b}\tB:{:02x}\tC:{:02x}\n\
              D:{:02x}\tE:{:02x}\tH:{:02x}\tL:{:02x}\n\
              PC:{:04x}\tSP:{:04x}",
-            self.pc, self.sp, self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
+            self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.pc, self.sp
         )
     }
 }
