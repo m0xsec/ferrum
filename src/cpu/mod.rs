@@ -3,13 +3,13 @@ use log::info;
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
 use std::rc::Rc;
-mod registers;
+pub mod registers;
 
 /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080
 /// https://gbdev.io/gb-opcodes/optables/errata
 pub struct CPU {
     /// Registers
-    reg: registers::Registers,
+    pub reg: registers::Registers,
 
     /// Memory
     mem: Rc<RefCell<dyn Memory>>,

@@ -77,6 +77,7 @@ pub enum Reg16 {
     DE,
     HL,
     SP,
+    PC,
 }
 
 impl Registers {
@@ -95,6 +96,34 @@ impl Registers {
         }
     }
 
+    /// Read a 8-bit register value.
+    pub fn read8(&self, reg: Reg8) -> u8 {
+        match reg {
+            Reg8::A => self.a,
+            Reg8::B => self.b,
+            Reg8::C => self.c,
+            Reg8::D => self.d,
+            Reg8::E => self.e,
+            Reg8::F => self.f.bits(),
+            Reg8::H => self.h,
+            Reg8::L => self.l,
+        }
+    }
+
+    /// Write a 8-bit register value.
+    pub fn write8(&mut self, reg: Reg8, val: u8) {
+        match reg {
+            Reg8::A => self.a = val,
+            Reg8::B => self.b = val,
+            Reg8::C => self.c = val,
+            Reg8::D => self.d = val,
+            Reg8::E => self.e = val,
+            Reg8::F => self.f = Flags::from_bits_truncate(val),
+            Reg8::H => self.h = val,
+            Reg8::L => self.l = val,
+        }
+    }
+
     /// Read a 16-bit register value.
     pub fn read16(&self, reg: Reg16) -> u16 {
         match reg {
@@ -103,29 +132,31 @@ impl Registers {
             Reg16::DE => ((self.d as u16) << 8) | (self.e as u16),
             Reg16::HL => ((self.h as u16) << 8) | (self.l as u16),
             Reg16::SP => self.sp,
+            Reg16::PC => self.pc,
         }
     }
 
     /// Write a 16-bit register value.
-    pub fn write16(&mut self, reg: Reg16, value: u16) {
+    pub fn write16(&mut self, reg: Reg16, val: u16) {
         match reg {
             Reg16::AF => {
-                self.a = (value >> 8) as u8;
-                self.f = Flags::from_bits_truncate(value as u8)
+                self.a = (val >> 8) as u8;
+                self.f = Flags::from_bits_truncate(val as u8)
             }
             Reg16::BC => {
-                self.b = (value >> 8) as u8;
-                self.c = value as u8
+                self.b = (val >> 8) as u8;
+                self.c = val as u8
             }
             Reg16::DE => {
-                self.d = (value >> 8) as u8;
-                self.e = value as u8
+                self.d = (val >> 8) as u8;
+                self.e = val as u8
             }
             Reg16::HL => {
-                self.h = (value >> 8) as u8;
-                self.l = value as u8
+                self.h = (val >> 8) as u8;
+                self.l = val as u8
             }
-            Reg16::SP => self.sp = value,
+            Reg16::SP => self.sp = val,
+            Reg16::PC => self.pc = val,
         }
     }
 }
