@@ -13,6 +13,7 @@ pub struct OpCode {
     pub op: u8,
     pub mnemonic: &'static str,
     pub cycles: u32,
+    //TODO: Include size/bytes for PC increment?
 }
 
 impl OpCode {
