@@ -3,6 +3,7 @@ use log::{info, warn};
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
 use std::rc::Rc;
+mod execute;
 mod opcodes;
 mod registers;
 
@@ -69,7 +70,7 @@ impl CPU {
     pub fn cycle(&mut self) {
         if !self.halt {
             let op = self.fetch();
-            self.cycles += self.execute(op);
+            self.cycles += self.op_execute(op);
         }
 
         if self.cycles > self.max_cycles {

@@ -5,6 +5,9 @@ mod cpu;
 mod gb;
 mod mmu;
 
+#[macro_use]
+extern crate lazy_static;
+
 fn main() {
     env_logger::init();
     info!("ferrum is a WIP. Most functionality is not implemented.");
