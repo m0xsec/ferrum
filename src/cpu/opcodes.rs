@@ -28,6 +28,7 @@ impl OpCode {
 }
 
 lazy_static! {
+    //TODO: Add all Z80 / SM83 / LR35902 CPU instructions for the Game Boy...
     pub static ref CPU_OP_CODES: Vec<OpCode> = vec![
         OpCode::new(0x00, "NOP", 1, 4),
         OpCode::new(0x01, "NOP", 1, 4),
