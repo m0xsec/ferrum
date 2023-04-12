@@ -9,6 +9,7 @@ impl CPU {
         let opcode = opcodes.get(&op).unwrap_or(&&opcodes::OpCode {
             op: 0x00,
             mnemonic: "NOT IMPLEMENTED",
+            length: 0,
             cycles: 0,
         });
 
@@ -16,7 +17,7 @@ impl CPU {
             0x00 => {
                 info!("{}", &opcode.mnemonic);
                 // Preform opcode execution logic here...
-                self.reg.inc_pc(1);
+                self.reg.inc_pc(opcode.length.into());
                 opcode.cycles
             }
             _ => {
