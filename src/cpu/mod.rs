@@ -73,6 +73,8 @@ impl CPU {
             let (len, cycle) = self.op_execute(op);
             self.reg.inc_pc(len.into());
             self.cycles += cycle;
+        } else {
+            info!("CPU halted!");
         }
 
         if self.cycles > self.max_cycles {
