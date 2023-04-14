@@ -16,15 +16,15 @@ impl CPU {
         match op {
             0x00 => {
                 info!("{}", &opcode.mnemonic);
-                // Preform opcode execution logic here...
+                // TODO: Preform opcode execution logic here...
                 self.reg.inc_pc(opcode.length.into());
                 opcode.cycles
             }
             _ => {
-                //todo!();
-                warn!("opcode not implemented: {:#02x}.", op);
+                todo!();
+                /*warn!("opcode not implemented: {:#02x}.", op);
                 self.reg.inc_pc(1);
-                0
+                0*/
             }
         }
     }
