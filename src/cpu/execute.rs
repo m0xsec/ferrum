@@ -6,12 +6,13 @@ impl CPU {
     /// Executes a CPU operation, returns the number of cycles
     pub fn op_execute(&mut self, op: u8) -> u32 {
         let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
-        let opcode = opcodes.get(&op).unwrap_or(&&opcodes::OpCode {
+        let opcode = opcodes.get(&op).unwrap();
+        /*let opcode = opcodes.get(&op).unwrap_or(&&opcodes::OpCode {
             op: 0x00,
             mnemonic: "NOT IMPLEMENTED",
             length: 0,
             cycles: 0,
-        });
+        });*/
 
         match op {
             0x00 => {
@@ -20,6 +21,7 @@ impl CPU {
                 self.reg.inc_pc(opcode.length.into());
                 opcode.cycles
             }
+
             _ => {
                 todo!();
                 /*warn!("opcode not implemented: {:#02x}.", op);
