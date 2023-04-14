@@ -70,7 +70,9 @@ impl CPU {
     pub fn cycle(&mut self) {
         if !self.halt {
             let op = self.fetch();
-            self.cycles += self.op_execute(op);
+            let (len, cycle) = self.op_execute(op);
+            self.reg.inc_pc(len.into());
+            self.cycles += cycle;
         }
 
         if self.cycles > self.max_cycles {
