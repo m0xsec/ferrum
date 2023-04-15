@@ -276,6 +276,28 @@ impl Cpu {
                 }
             }
 
+            // LD (HL), r8
+            // 0x70 - LD (HL), B - Load register B into memory at address HL
+            // 0x71 - LD (HL), C - Load register C into memory at address HL
+            // 0x72 - LD (HL), D - Load register D into memory at address HL
+            // 0x73 - LD (HL), E - Load register E into memory at address HL
+            // 0x74 - LD (HL), H - Load register H into memory at address HL
+            // 0x75 - LD (HL), L - Load register L into memory at address HL
+            // 0x77 - LD (HL), A - Load register A into memory at address HL
+            0x70 | 0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x77 => {
+                let val = match op {
+                    0x70 => self.reg.read8(Reg8::B),
+                    0x71 => self.reg.read8(Reg8::C),
+                    0x72 => self.reg.read8(Reg8::D),
+                    0x73 => self.reg.read8(Reg8::E),
+                    0x74 => self.reg.read8(Reg8::H),
+                    0x75 => self.reg.read8(Reg8::L),
+                    0x77 => self.reg.read8(Reg8::A),
+                    _ => 0x00,
+                };
+                self.ld8(self.reg.read16(Reg16::HL), val);
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
