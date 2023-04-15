@@ -41,11 +41,6 @@ impl GameBoy {
     pub fn boot_rom(&mut self) {
         // Read boot ROM into memory
         self.read_boot_rom();
-
-        // NOTE: Testing prohibited memory operation warning log
-        self.mmu.borrow_mut().write8(0xFEA0, 0x2C);
-        self.cpu.prohibited_memory_operation_test();
-
         self.cpu.dump_registers();
     }
 
