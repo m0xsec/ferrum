@@ -122,6 +122,28 @@ impl CPU {
                 self.ldr8(Reg8::B, val);
             }
 
+            // LD C, r8
+            // 0x48 - LD C, B - Load register B into register C
+            // 0x49 - LD C, C - Load register C into register C
+            // 0x4A - LD C, D - Load register D into register C
+            // 0x4B - LD C, E - Load register E into register C
+            // 0x4C - LD C, H - Load register H into register C
+            // 0x4D - LD C, L - Load register L into register C
+            // 0x4F - LD C, A - Load register A into register C
+            0x48 | 0x49 | 0x4A | 0x4B | 0x4C | 0x4D | 0x4F => {
+                let val = match op {
+                    0x48 => self.reg.read8(Reg8::B),
+                    0x49 => self.reg.read8(Reg8::C),
+                    0x4A => self.reg.read8(Reg8::D),
+                    0x4B => self.reg.read8(Reg8::E),
+                    0x4C => self.reg.read8(Reg8::H),
+                    0x4D => self.reg.read8(Reg8::L),
+                    0x4F => self.reg.read8(Reg8::A),
+                    _ => 0x00,
+                };
+                self.ldr8(Reg8::C, val);
+            }
+
             // LD r8, (HL)
             // 0x46 - LD B, (HL) - Load memory at address HL into register B
             // 0x4E - LD C, (HL) - Load memory at address HL into register C
