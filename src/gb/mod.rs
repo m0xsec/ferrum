@@ -24,7 +24,7 @@ impl GameBoy {
     fn read_boot_rom(&mut self) {
         info!("Loading boot rom.");
         for (addr, val) in boot::BOOTROM.iter().enumerate() {
-            self.mmu.borrow_mut().write(addr as u16, *val);
+            self.mmu.borrow_mut().write8(addr as u16, *val);
         }
     }
 }
@@ -43,7 +43,7 @@ impl GameBoy {
         self.read_boot_rom();
 
         // NOTE: Testing prohibited memory operation warning log
-        self.mmu.borrow_mut().write(0xFEA0, 0x2C);
+        self.mmu.borrow_mut().write8(0xFEA0, 0x2C);
         self.cpu.prohibited_memory_operation_test();
 
         self.cpu.dump_registers();

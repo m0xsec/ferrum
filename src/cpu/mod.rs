@@ -31,7 +31,7 @@ impl CPU {
     fn fetch(&self) -> u8 {
         self.mem
             .borrow()
-            .read(self.reg.read16(registers::Reg16::PC))
+            .read8(self.reg.read16(registers::Reg16::PC))
     }
 }
 
@@ -87,7 +87,7 @@ impl CPU {
 
     /// NOTE: This is for testing prohibited memory operations on the MMU. For debugging only.
     pub fn prohibited_memory_operation_test(&mut self) {
-        self.mem.borrow_mut().write(0xFEA0, 0x2C);
+        self.mem.borrow_mut().write8(0xFEA0, 0x2C);
     }
 
     /// Dumps the current CPU Register values at the info Log level.

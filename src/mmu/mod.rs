@@ -74,8 +74,8 @@ impl MMU {
 }
 
 impl Memory for MMU {
-    /// Read a value from memory.
-    fn read(&self, addr: u16) -> u8 {
+    /// Read a byte (u8) from memory.
+    fn read8(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x3FFF => self.rom0[addr as usize],
             0x4000..=0x7FFF => self.romx[addr as usize - 0x4000],
@@ -94,9 +94,12 @@ impl Memory for MMU {
         }
     }
 
-    /// Write a value to memory
-    fn write(&mut self, addr: u16, val: u8) {
-        info!("MMU Write val --> [addr]: {:#02x} --> [{:#02x}]", val, addr);
+    /// Write a byte (u8) to memory.
+    fn write8(&mut self, addr: u16, val: u8) {
+        info!(
+            "MMU Write8 val --> [addr]: {:#02x} --> [{:#02x}]",
+            val, addr
+        );
         match addr {
             0x0000..=0x3FFF => self.rom0[addr as usize] = val,
             0x4000..=0x7FFF => self.romx[addr as usize - 0x4000] = val,
@@ -112,5 +115,20 @@ impl Memory for MMU {
                 warn!("Attempt to write prohibited area of memory, {:#02x}.", addr);
             }
         }
+    }
+
+    /// Read a word (u16) from memory
+    fn read16(&self, addr: u16) -> u16 {
+        u16::from(self.read8(addr)) | (u16::from(self.read8(addr + 1)) << 8)
+    }
+
+    /// Write a word (u16) to memory
+    fn write16(&mut self, addr: u16, val: u16) {
+        info!(
+            "MMU Write16 val --> [addr]: {:#02x} --> [{:#02x}]",
+            val, addr
+        );
+        self.write8(addr, (val & 0xFF) as u8);
+        self.write8(addr + 1, (val >> 8) as u8);
     }
 }

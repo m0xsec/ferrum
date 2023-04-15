@@ -1,6 +1,13 @@
 pub trait Memory {
-    /// Read a value from memory.
-    fn read(&self, addr: u16) -> u8;
-    /// Write a value from memory.
-    fn write(&mut self, addr: u16, val: u8);
+    /// Read a byte (u8) from memory.
+    fn read8(&self, addr: u16) -> u8;
+
+    /// Write a byte (u8) to memory.
+    fn write8(&mut self, addr: u16, val: u8);
+
+    /// Read a word (u16) from memory
+    fn read16(&self, addr: u16) -> u16;
+
+    /// Write a word (u16) to memory
+    fn write16(&mut self, addr: u16, val: u16);
 }
