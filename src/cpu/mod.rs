@@ -9,7 +9,7 @@ mod registers;
 
 /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080
 /// https://gbdev.io/gb-opcodes/optables/errata
-pub struct CPU {
+pub struct Cpu {
     /// Registers
     reg: registers::Registers,
 
@@ -26,7 +26,7 @@ pub struct CPU {
     halt: bool,
 }
 
-impl CPU {
+impl Cpu {
     /// Fetches the next opcode from memory
     fn fetch(&self) -> u8 {
         self.mem
@@ -35,7 +35,7 @@ impl CPU {
     }
 }
 
-impl CPU {
+impl Cpu {
     /// Initialize the CPU
     pub fn power_on(mem: Rc<RefCell<dyn Memory>>) -> Self {
         Self {

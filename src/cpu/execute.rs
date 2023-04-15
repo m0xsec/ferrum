@@ -1,15 +1,15 @@
 use super::{
     opcodes,
     registers::{Reg16, Reg8},
-    CPU,
+    Cpu,
 };
 use log::info;
 use std::collections::HashMap;
 
-impl CPU {
+impl Cpu {
     /// Executes a CPU operation, returns the number of cycles
     pub(super) fn op_execute(&mut self, op: u8) -> (u8, u32) {
-        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
+        let opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
         let opcode = opcodes.get(&op).unwrap();
 
         info!("{:#02x} {}", opcode.op, &opcode.mnemonic);
@@ -197,7 +197,7 @@ impl CPU {
     }
 }
 
-impl CPU {
+impl Cpu {
     /// Fetch the immediate byte (u8).
     /// NOTE: incrementing the PC is not handled.
     fn imm8(&mut self) -> u8 {

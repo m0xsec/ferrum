@@ -9,24 +9,24 @@ pub mod memory;
 ///
 /// The Game Boy has a 16-bit address bus, which is used to address ROM, RAM, and I/O.
 ///
-/// Start	End		Description						Notes
-/// 0000	3FFF	16 KiB ROM bank 00				From cartridge, usually a fixed bank
-/// 4000	7FFF	16 KiB ROM Bank 01~NN			From cartridge, switchable bank via mapper (if any)
-/// 8000	9FFF	8 KiB Video RAM (VRAM)			In CGB mode, switchable bank 0/1
-/// A000	BFFF	8 KiB External RAM				From cartridge, switchable bank if any
-/// C000	CFFF	4 KiB Work RAM (WRAM)
-/// D000	DFFF	4 KiB Work RAM (WRAM)			In CGB mode, switchable bank 1~7
-/// E000	FDFF	Mirror of C000~DDFF (ECHO RAM)	Nintendo says use of this area is prohibited.
-/// FE00	FE9F	Sprite attribute table (OAM)
-/// FEA0	FEFF	Not Usable						Nintendo says use of this area is prohibited
-/// FF00	FF7F	I/O Registers
-/// FF80	FFFE	High RAM (HRAM)
-/// FFFF	FFFF	Interrupt Enable register (IE)
+/// Start    End    Description                        Notes
+/// 0000    3FFF    16 KiB ROM bank 00                 From cartridge, usually a fixed bank
+/// 4000    7FFF    16 KiB ROM Bank 01~NN              From cartridge, switchable bank via mapper (if any)
+/// 8000    9FFF    8 KiB Video RAM (VRAM)             In CGB mode, switchable bank 0/1
+/// A000    BFFF    8 KiB External RAM                 From cartridge, switchable bank if any
+/// C000    CFFF    4 KiB Work RAM (WRAM)
+/// D000    DFFF    4 KiB Work RAM (WRAM)              In CGB mode, switchable bank 1~7
+/// E000    FDFF    Mirror of C000~DDFF (ECHO RAM)     Nintendo says use of this area is prohibited.
+/// FE00    FE9F    Sprite attribute table (OAM)
+/// FEA0    FEFF    Not Usable                         Nintendo says use of this area is prohibited
+/// FF00    FF7F    I/O Registers
+/// FF80    FFFE    High RAM (HRAM)
+/// FFFF    FFFF    Interrupt Enable register (IE)
 ///
 /// https://gbdev.io/pandocs/Memory_Map.html
-pub struct MMU {
+pub struct Mmu {
     /// ROM Bank 00 - From cartridge, usually a fixed bank.
-    rom0: [u8; (0x3FFF - 0x0000) + 1],
+    rom0: [u8; 0x3FFF + 1],
 
     /// ROM Bank 01~NN - From cartridge, switchable bank via mapper (if any).
     romx: [u8; (0x7FFF - 0x4000) + 1],
@@ -56,10 +56,10 @@ pub struct MMU {
     ie: u8,
 }
 
-impl MMU {
+impl Mmu {
     pub fn new() -> Self {
         Self {
-            rom0: [0x00; (0x3FFF - 0x0000) + 1],
+            rom0: [0x00; 0x3FFF + 1],
             romx: [0x00; (0x7FFF - 0x4000) + 1],
             vram: [0x00; (0x9FFF - 0x8000) + 1],
             sram: [0x00; (0xBFFF - 0xA000) + 1],
@@ -73,7 +73,7 @@ impl MMU {
     }
 }
 
-impl Memory for MMU {
+impl Memory for Mmu {
     /// Read a byte (u8) from memory.
     fn read8(&self, addr: u16) -> u8 {
         match addr {
