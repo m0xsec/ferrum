@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 impl CPU {
     /// Executes a CPU operation, returns the number of cycles
-    pub fn op_execute(&mut self, op: u8) -> (u8, u32) {
+    pub(super) fn op_execute(&mut self, op: u8) -> (u8, u32) {
         let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
         let opcode = opcodes.get(&op).unwrap();
 
@@ -142,6 +142,28 @@ impl CPU {
                     _ => 0x00,
                 };
                 self.ldr8(Reg8::C, val);
+            }
+
+            // LD D, r8
+            // 0x50 - LD D, B - Load register B into register D
+            // 0x51 - LD D, C - Load register C into register D
+            // 0x52 - LD D, D - Load register D into register D
+            // 0x53 - LD D, E - Load register E into register D
+            // 0x54 - LD D, H - Load register H into register D
+            // 0x55 - LD D, L - Load register L into register D
+            // 0x57 - LD D, A - Load register A into register D
+            0x50 | 0x51 | 0x52 | 0x53 | 0x54 | 0x55 | 0x57 => {
+                let val = match op {
+                    0x50 => self.reg.read8(Reg8::B),
+                    0x51 => self.reg.read8(Reg8::C),
+                    0x52 => self.reg.read8(Reg8::D),
+                    0x53 => self.reg.read8(Reg8::E),
+                    0x54 => self.reg.read8(Reg8::H),
+                    0x55 => self.reg.read8(Reg8::L),
+                    0x57 => self.reg.read8(Reg8::A),
+                    _ => 0x00,
+                };
+                self.ldr8(Reg8::D, val);
             }
 
             // LD r8, (HL)

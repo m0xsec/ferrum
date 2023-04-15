@@ -19,10 +19,10 @@ pub struct OpCode {
 impl OpCode {
     fn new(op: u8, mnemonic: &'static str, length: u8, cycles: u32) -> Self {
         OpCode {
-            op: op,
-            mnemonic: mnemonic,
-            length: length,
-            cycles: cycles,
+            op,
+            mnemonic,
+            length,
+            cycles,
         }
     }
 }
