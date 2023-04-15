@@ -1,4 +1,4 @@
-/* 	xxd -g 1 DMG_ROM.bin
+/* 	xxd -g 1 roms/bootstrap/DMG_ROM.bin
 00000000: 31 fe ff af 21 ff 9f 32 cb 7c 20 fb 21 26 ff 0e  1...!..2.| .!&..
 00000010: 11 3e 80 32 e2 0c 3e f3 e2 32 3e 77 77 3e fc e0  .>.2..>..2>ww>..
 00000020: 47 11 04 01 21 10 80 1a cd 95 00 cd 96 00 13 7b  G...!..........{
