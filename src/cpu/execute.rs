@@ -80,6 +80,26 @@ impl CPU {
                 }
             }
 
+            // LD A, (r16)
+            // 0x0A - LD A, (BC) - Load memory at address BC into register A
+            // 0x1A - LD A, (DE) - Load memory at address DE into register A
+            // 0x2A - LD A, (HL+) - Load memory at address HL into register A, then increment HL
+            // 0x3A - LD A, (HL-) - Load memory at address HL into register A, then decrement HL
+            0x0A | 0x1A | 0x2A | 0x3A => {
+                let val = match op {
+                    0x0A => self.mem.borrow().read8(self.reg.read16(Reg16::BC)),
+                    0x1A => self.mem.borrow().read8(self.reg.read16(Reg16::DE)),
+                    0x2A | 0x3A => self.mem.borrow().read8(self.reg.read16(Reg16::HL)),
+                    _ => 0x00,
+                };
+                match op {
+                    0x2A => self.reg.write16(Reg16::HL, self.reg.read16(Reg16::HL) + 1),
+                    0x3A => self.reg.write16(Reg16::HL, self.reg.read16(Reg16::HL) - 1),
+                    _ => {}
+                }
+                self.ldr8(Reg8::A, val);
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
