@@ -119,17 +119,31 @@ impl CPU {
                     0x47 => self.reg.read8(Reg8::A),
                     _ => 0x00,
                 };
-                self.reg.write8(Reg8::B, val);
+                self.ldr8(Reg8::B, val);
             }
 
             // LD r8, (HL)
             // 0x46 - LD B, (HL) - Load memory at address HL into register B
-            // 0x4E
-            // 0x56
-            // 0x5E
-            // 0x66
-            // 0x6E
-            // 0x7E
+            // 0x4E - LD C, (HL) - Load memory at address HL into register C
+            // 0x56 - LD D, (HL) - Load memory at address HL into register D
+            // 0x5E - LD E, (HL) - Load memory at address HL into register E
+            // 0x66 - LD H, (HL) - Load memory at address HL into register H
+            // 0x6E - LD L, (HL) - Load memory at address HL into register L
+            // 0x7E - LD A, (HL) - Load memory at address HL into register A
+            0x46 | 0x4E | 0x56 | 0x5E | 0x66 | 0x6E | 0x7E => {
+                let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                match op {
+                    0x46 => self.ldr8(Reg8::B, val),
+                    0x4E => self.ldr8(Reg8::C, val),
+                    0x56 => self.ldr8(Reg8::D, val),
+                    0x5E => self.ldr8(Reg8::E, val),
+                    0x66 => self.ldr8(Reg8::H, val),
+                    0x6E => self.ldr8(Reg8::L, val),
+                    0x7E => self.ldr8(Reg8::A, val),
+                    _ => {}
+                }
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
