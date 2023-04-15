@@ -15,9 +15,8 @@ impl CPU {
         info!("{:#02x} {}", opcode.op, &opcode.mnemonic);
 
         match op {
-            0x00 => {
-                // NOP
-            }
+            // 0x00 - NOP - No operation
+            0x00 => {}
 
             // LD r8, d8
             // 0x06 - LD B, d8 - Load immediate 8-bit value into register B
