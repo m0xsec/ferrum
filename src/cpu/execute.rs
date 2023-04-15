@@ -58,9 +58,26 @@ impl CPU {
                 }
             }
 
-            // LD (BC), A - Load A into memory at address BC
-            0x02 => {
-                self.ld8(self.reg.read16(Reg16::BC), self.reg.read8(Reg8::A));
+            // LD (r16), A
+            // 0x02 - LD (BC), A - Load A into memory at address BC
+            // 0x12 - LD (DE), A - Load A into memory at address DE
+            // 0x22 - LD (HL+), A - Load A into memory at address HL, then increment HL
+            // 0x32 - LD (HL-), A - Load A into memory at address HL, then decrement HL
+            0x02 | 0x12 | 0x22 | 0x32 => {
+                let a = self.reg.read8(Reg8::A);
+                match op {
+                    0x02 => self.ld8(self.reg.read16(Reg16::BC), a),
+                    0x12 => self.ld8(self.reg.read16(Reg16::DE), a),
+                    0x22 | 0x32 => {
+                        self.ld8(self.reg.read16(Reg16::HL), self.reg.read8(Reg8::A));
+                        match op {
+                            0x22 => self.reg.write16(Reg16::HL, self.reg.read16(Reg16::HL) + 1),
+                            0x32 => self.reg.write16(Reg16::HL, self.reg.read16(Reg16::HL) - 1),
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
             }
 
             _ => {
