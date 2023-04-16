@@ -60,6 +60,7 @@ pub struct Registers {
 }
 
 /// Reg8 represents an 8-bit register.
+#[derive(Clone, Copy)]
 pub enum Reg8 {
     A,
     B,
@@ -72,6 +73,7 @@ pub enum Reg8 {
 }
 
 /// Reg16 represents a 16-bit register.
+#[derive(Clone, Copy)]
 pub enum Reg16 {
     AF,
     BC,

@@ -415,34 +415,6 @@ impl Cpu {
                 _ => {}
             },
 
-            // ADD HL, r16
-            // 0x09 - ADD HL, BC - Add register BC to register HL
-            // 0x19 - ADD HL, DE - Add register DE to register HL
-            // 0x29 - ADD HL, HL - Add register HL to register HL
-            // 0x39 - ADD HL, SP - Add register SP to register HL
-            0x09 | 0x19 | 0x29 | 0x39 => match op {
-                0x09 => self.alu_add16(Reg16::BC),
-                0x19 => self.alu_add16(Reg16::DE),
-                0x29 => self.alu_add16(Reg16::HL),
-                0x39 => self.alu_add16(Reg16::SP),
-                _ => {}
-            },
-
-            // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
-            // Flags: 0 0 H C
-            0xE8 => {
-                let val = self.imm8() as i8 as i16;
-                let sp = self.reg.read16(Reg16::SP) as i16;
-                let result = sp.wrapping_add(val);
-
-                self.reg.set_zf(false);
-                self.reg.set_nf(false);
-                self.reg.set_hf(((sp & 0xF) + (val & 0xF)) > 0xF);
-                self.reg.set_cf(((sp & 0xFF) + (val & 0xFF)) > 0xFF);
-
-                self.reg.write16(Reg16::SP, result as u16);
-            }
-
             // DEC r16
             // 0x0B - DEC BC - Decrement register BC
             // 0x1B - DEC DE - Decrement register DE
@@ -463,6 +435,94 @@ impl Cpu {
                     .write16(Reg16::SP, self.reg.read16(Reg16::SP).wrapping_sub(1)),
                 _ => {}
             },
+
+            // INC r8
+            // 0x04 - INC B - Increment register B
+            // 0x0C - INC C - Increment register C
+            // 0x14 - INC D - Increment register D
+            // 0x1C - INC E - Increment register E
+            // 0x24 - INC H - Increment register H
+            // 0x2C - INC L - Increment register L
+            // 0x3C - INC A - Increment register A
+            0x04 | 0x0C | 0x14 | 0x1C | 0x24 | 0x2C | 0x3C => match op {
+                0x04 => self.alu_inc8(Reg8::B),
+                0x0C => self.alu_inc8(Reg8::C),
+                0x14 => self.alu_inc8(Reg8::D),
+                0x1C => self.alu_inc8(Reg8::E),
+                0x24 => self.alu_inc8(Reg8::H),
+                0x2C => self.alu_inc8(Reg8::L),
+                0x3C => self.alu_inc8(Reg8::A),
+                _ => {}
+            },
+
+            // 0x34 - INC (HL) - Increment memory at register HL
+            0x34 => {
+                let addr = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(addr);
+                let result = val.wrapping_add(1);
+                self.reg.set_zf(result == 0);
+                self.reg.set_nf(false);
+                self.reg.set_hf((val & 0xF) + 1 > 0xF);
+                self.mem.borrow_mut().write8(addr, result);
+            }
+
+            // ADD HL, r16
+            // 0x09 - ADD HL, BC - Add register BC to register HL
+            // 0x19 - ADD HL, DE - Add register DE to register HL
+            // 0x29 - ADD HL, HL - Add register HL to register HL
+            // 0x39 - ADD HL, SP - Add register SP to register HL
+            0x09 | 0x19 | 0x29 | 0x39 => match op {
+                0x09 => self.alu_add16(Reg16::BC),
+                0x19 => self.alu_add16(Reg16::DE),
+                0x29 => self.alu_add16(Reg16::HL),
+                0x39 => self.alu_add16(Reg16::SP),
+                _ => {}
+            },
+
+            // DEC r8
+            // 0x05 - DEC B - Decrement register B
+            // 0x0D - DEC C - Decrement register C
+            // 0x15 - DEC D - Decrement register D
+            // 0x1D - DEC E - Decrement register E
+            // 0x25 - DEC H - Decrement register H
+            // 0x2D - DEC L - Decrement register L
+            // 0x3D - DEC A - Decrement register A
+            0x05 | 0x0D | 0x15 | 0x1D | 0x25 | 0x2D | 0x3D => match op {
+                0x05 => self.alu_dec8(Reg8::B),
+                0x0D => self.alu_dec8(Reg8::C),
+                0x15 => self.alu_dec8(Reg8::D),
+                0x1D => self.alu_dec8(Reg8::E),
+                0x25 => self.alu_dec8(Reg8::H),
+                0x2D => self.alu_dec8(Reg8::L),
+                0x3D => self.alu_dec8(Reg8::A),
+                _ => {}
+            },
+
+            // 0x35 - DEC (HL) - Decrement memory at register HL
+            0x35 => {
+                let addr = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(addr);
+                let result = val.wrapping_sub(1);
+                self.reg.set_zf(result == 0);
+                self.reg.set_nf(true);
+                self.reg.set_hf((val & 0xF) < 1);
+                self.mem.borrow_mut().write8(addr, result);
+            }
+
+            // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
+            // Flags: 0 0 H C
+            0xE8 => {
+                let val = self.imm8() as i8 as i16;
+                let sp = self.reg.read16(Reg16::SP) as i16;
+                let result = sp.wrapping_add(val);
+
+                self.reg.set_zf(false);
+                self.reg.set_nf(false);
+                self.reg.set_hf(((sp & 0xF) + (val & 0xF)) > 0xF);
+                self.reg.set_cf(((sp & 0xFF) + (val & 0xFF)) > 0xFF);
+
+                self.reg.write16(Reg16::SP, result as u16);
+            }
 
             _ => {
                 todo!("opcode: {:#02x}.", op);
@@ -525,6 +585,30 @@ impl Cpu {
         let val = self.mem.borrow().read16(sp);
         self.reg.write16(Reg16::SP, sp + 2);
         val
+    }
+
+    /// ALU 8-bit increment operation.
+    /// Increment an 8-bit value from an 8-bit register.
+    /// Flags: Z 0 H -
+    fn alu_inc8(&mut self, reg: Reg8) {
+        let val = self.reg.read8(reg);
+        let result = val.wrapping_add(1);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf((val & 0x0F) + 1 > 0x0F);
+        self.ldr8(reg, result);
+    }
+
+    /// ALU 8-bit decrement operation.
+    /// Decrement an 8-bit value from an 8-bit register.
+    /// Flags: Z 1 H -
+    fn alu_dec8(&mut self, reg: Reg8) {
+        let val = self.reg.read8(reg);
+        let result = val.wrapping_sub(1);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((val & 0x0F) == 0);
+        self.ldr8(reg, result);
     }
 
     /// ALU 16-bit add operation.
