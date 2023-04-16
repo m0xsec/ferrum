@@ -304,6 +304,38 @@ impl Cpu {
                 self.ld8(self.reg.read16(Reg16::HL), val);
             }
 
+            // POP r16
+            // 0xC1 - POP BC - Pop 16-bit value from stack into register BC
+            // 0xD1 - POP DE - Pop 16-bit value from stack into register DE
+            // 0xE1 - POP HL - Pop 16-bit value from stack into register HL
+            // 0xF1 - POP AF - Pop 16-bit value from stack into register AF
+            0xC1 | 0xD1 | 0xE1 | 0xF1 => {
+                let val = self.stack_pop();
+                match op {
+                    0xC1 => self.reg.write16(Reg16::BC, val),
+                    0xD1 => self.reg.write16(Reg16::DE, val),
+                    0xE1 => self.reg.write16(Reg16::HL, val),
+                    0xF1 => self.reg.write16(Reg16::AF, val),
+                    _ => {}
+                }
+            }
+
+            // PUSH r16
+            // 0xC5 - PUSH BC - Push register BC onto stack
+            // 0xD5 - PUSH DE - Push register DE onto stack
+            // 0xE5 - PUSH HL - Push register HL onto stack
+            // 0xF5 - PUSH AF - Push register AF onto stack
+            0xC5 | 0xD5 | 0xE5 | 0xF5 => {
+                let val = match op {
+                    0xC5 => self.reg.read16(Reg16::BC),
+                    0xD5 => self.reg.read16(Reg16::DE),
+                    0xE5 => self.reg.read16(Reg16::HL),
+                    0xF5 => self.reg.read16(Reg16::AF),
+                    _ => 0x0000,
+                };
+                self.stack_push(val);
+            }
+
             // 0xE0 - LDH (a8), A - Load register A into memory at address 0xFF00 + a8
             0xE0 => {
                 let addr = 0xFF00 + self.imm8() as u16;
@@ -406,5 +438,22 @@ impl Cpu {
     /// Load a 16-bit value (val) into the 16-bit register (dst).
     fn ldr16(&mut self, dst: Reg16, val: u16) {
         self.reg.write16(dst, val);
+    }
+
+    /// Stack push operation.
+    /// Push a 16-bit value (val) onto the stack.
+    fn stack_push(&mut self, val: u16) {
+        let sp = self.reg.read16(Reg16::SP);
+        self.ld16(sp - 2, val);
+        self.reg.write16(Reg16::SP, sp - 2);
+    }
+
+    /// Stack pop operation.
+    /// Pop a 16-bit value from the stack.
+    fn stack_pop(&mut self) -> u16 {
+        let sp = self.reg.read16(Reg16::SP);
+        let val = self.mem.borrow().read16(sp);
+        self.reg.write16(Reg16::SP, sp + 2);
+        val
     }
 }
