@@ -52,6 +52,21 @@ impl Cpu {
                 _ => {}
             },
 
+            // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
+            // Flags: 0 0 H C
+            0xE8 => {
+                let val = self.imm8() as i8 as i16;
+                let sp = self.reg.read16(Reg16::SP) as i16;
+                let result = sp.wrapping_add(val);
+
+                self.reg.set_zf(false);
+                self.reg.set_nf(false);
+                self.reg.set_hf(((sp & 0xF) + (val & 0xF)) > 0xF);
+                self.reg.set_cf(((sp & 0xFF) + (val & 0xFF)) > 0xFF);
+
+                self.reg.write16(Reg16::SP, result as u16);
+            }
+
             // DEC r16
             // 0x0B - DEC BC - Decrement register BC
             // 0x1B - DEC DE - Decrement register DE
@@ -417,17 +432,17 @@ impl Cpu {
                 self.ldr8(Reg8::A, val);
             }
 
-            // 0xF8 - LD HL, SP + r8 - Load the sum of SP and the immediate byte into register HL
+            // 0xF8 - LD HL, SP + r8 - Load the sum of SP and the immediate signed byte into register HL
             // Flags: 0 0 H C
             0xF8 => {
-                let sp = self.reg.read16(Reg16::SP);
-                let r8 = self.imm8() as i8 as u16;
-                let val = self.reg.read16(Reg16::SP).wrapping_add(r8);
+                let r8 = self.imm8() as i8 as i16;
+                let sp = self.reg.read16(Reg16::SP) as i16;
+                let result = sp.wrapping_add(r8);
                 self.reg.set_zf(false);
                 self.reg.set_nf(false);
                 self.reg.set_hf((sp & 0xF) + (r8 & 0xF) > 0xF);
                 self.reg.set_cf((sp & 0xFF) + (r8 & 0xFF) > 0xFF);
-                self.ldr16(Reg16::HL, val);
+                self.ldr16(Reg16::HL, result as u16);
             }
 
             // 0xF9 - LD SP, HL - Load register HL into register SP
