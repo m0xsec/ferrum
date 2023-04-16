@@ -515,6 +515,9 @@ impl Cpu {
             // 0x2F - CPL - Complement register A
             0x2F => self.alu_cpl(),
 
+            // 0x37 - SCF - Set carry flag
+            0x37 => self.alu_scf(),
+
             // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
             // Flags: 0 0 H C
             0xE8 => {
@@ -679,5 +682,14 @@ impl Cpu {
         self.reg.set_nf(true);
         self.reg.set_hf(true);
         self.reg.write8(Reg8::A, a);
+    }
+
+    /// ALU SCF operation.
+    /// Set carry flag.
+    /// Flags: - 0 0 1
+    fn alu_scf(&mut self) {
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(true);
     }
 }
