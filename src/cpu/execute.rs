@@ -336,11 +336,11 @@ impl Cpu {
                 let sp = self.reg.read16(Reg16::SP);
                 let r8 = self.imm8() as i8 as u16;
                 let val = self.reg.read16(Reg16::SP).wrapping_add(r8);
-                self.ldr16(Reg16::HL, val);
                 self.reg.set_zf(false);
                 self.reg.set_nf(false);
                 self.reg.set_hf((sp & 0xF) + (r8 & 0xF) > 0xF);
                 self.reg.set_cf((sp & 0xFF) + (r8 & 0xFF) > 0xFF);
+                self.ldr16(Reg16::HL, val);
             }
 
             // 0xF9 - LD SP, HL - Load register HL into register SP
