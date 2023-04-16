@@ -518,6 +518,9 @@ impl Cpu {
             // 0x37 - SCF - Set carry flag
             0x37 => self.alu_scf(),
 
+            // 0x3F - CCF - Complement carry flag
+            0x3F => self.alu_ccf(),
+
             // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
             // Flags: 0 0 H C
             0xE8 => {
@@ -691,5 +694,15 @@ impl Cpu {
         self.reg.set_nf(false);
         self.reg.set_hf(false);
         self.reg.set_cf(true);
+    }
+
+    /// ALU CCF operation.
+    /// Complement carry flag.
+    /// If the carry flag is set, then it is reset. Otherwise, it is set. (CF = !CF).
+    /// Flags: - 0 0 C
+    fn alu_ccf(&mut self) {
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(!self.reg.cf());
     }
 }
