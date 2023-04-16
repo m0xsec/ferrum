@@ -512,6 +512,9 @@ impl Cpu {
             // 0x27 - DAA - Decimal adjust register A
             0x27 => self.alu_daa(),
 
+            // 0x2F - CPL - Complement register A
+            0x2F => self.alu_cpl(),
+
             // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
             // Flags: 0 0 H C
             0xE8 => {
@@ -599,7 +602,7 @@ impl Cpu {
         self.reg.set_zf(result == 0);
         self.reg.set_nf(false);
         self.reg.set_hf((val & 0x0F) + 1 > 0x0F);
-        self.ldr8(reg, result);
+        self.reg.write8(reg, result);
     }
 
     /// ALU 8-bit decrement operation.
@@ -611,7 +614,7 @@ impl Cpu {
         self.reg.set_zf(result == 0);
         self.reg.set_nf(true);
         self.reg.set_hf((val & 0x0F) == 0);
-        self.ldr8(reg, result);
+        self.reg.write8(reg, result);
     }
 
     /// ALU 16-bit add operation.
@@ -624,7 +627,7 @@ impl Cpu {
         self.reg.set_nf(false);
         self.reg.set_hf((hl & 0x0FFF) + (val & 0x0FFF) > 0x0FFF);
         self.reg.set_cf(hl > 0xFFFF - val);
-        self.ldr16(Reg16::HL, result);
+        self.reg.write16(Reg16::HL, result);
     }
 
     /// ALU DAA operation.
@@ -665,6 +668,16 @@ impl Cpu {
         }
         self.reg.set_zf(a == 0);
         self.reg.set_hf(false);
+        self.reg.write8(Reg8::A, a);
+    }
+
+    /// ALU CPL operation.
+    /// Complement register A (Flip all bits).
+    /// Flags: - 1 1 -
+    fn alu_cpl(&mut self) {
+        let a = !self.reg.read8(Reg8::A);
+        self.reg.set_nf(true);
+        self.reg.set_hf(true);
         self.reg.write8(Reg8::A, a);
     }
 }
