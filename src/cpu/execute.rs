@@ -298,6 +298,19 @@ impl Cpu {
                 self.ld8(self.reg.read16(Reg16::HL), val);
             }
 
+            // 0xEA - LD (a16), A - Load register A into memory at the absolute 16-bit address a16
+            0xEA => {
+                let addr = self.imm16();
+                self.ld8(addr, self.reg.read8(Reg8::A));
+            }
+
+            // 0xFA - LD A, (a16) - Load memory at the absolute 16-bit address a16 into register A
+            0xFA => {
+                let addr = self.imm16();
+                let val = self.mem.borrow().read8(addr);
+                self.ldr8(Reg8::A, val);
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
