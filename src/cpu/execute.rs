@@ -330,6 +330,25 @@ impl Cpu {
                 self.ldr8(Reg8::A, val);
             }
 
+            // 0xF8 - LD HL, SP + r8 - Load the sum of SP and the immediate byte into register HL
+            // Flags: 0 0 H C
+            0xF8 => {
+                let sp = self.reg.read16(Reg16::SP);
+                let r8 = self.imm8() as i8 as u16;
+                let val = self.reg.read16(Reg16::SP).wrapping_add(r8);
+                self.ldr16(Reg16::HL, val);
+                self.reg.set_zf(false);
+                self.reg.set_nf(false);
+                self.reg.set_hf((sp & 0xF) + (r8 & 0xF) > 0xF);
+                self.reg.set_cf((sp & 0xFF) + (r8 & 0xFF) > 0xFF);
+            }
+
+            // 0xF9 - LD SP, HL - Load register HL into register SP
+            0xF9 => {
+                let val = self.reg.read16(Reg16::HL);
+                self.ldr16(Reg16::SP, val);
+            }
+
             // 0xEA - LD (a16), A - Load register A into memory at the absolute 16-bit address a16
             0xEA => {
                 let addr = self.imm16();

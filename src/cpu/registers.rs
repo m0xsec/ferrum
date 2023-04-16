@@ -161,6 +161,46 @@ impl Registers {
         }
     }
 
+    /// Get the value of the zero flag.
+    pub fn zf(&self) -> bool {
+        self.f.contains(Flags::ZERO)
+    }
+
+    /// Get the value of the subtract flag.
+    pub fn nf(&self) -> bool {
+        self.f.contains(Flags::ADD_SUBTRACT)
+    }
+
+    /// Get the value of the half carry flag.
+    pub fn hf(&self) -> bool {
+        self.f.contains(Flags::HALF_CARRY)
+    }
+
+    /// Get the value of the carry flag.
+    pub fn cf(&self) -> bool {
+        self.f.contains(Flags::CARRY)
+    }
+
+    /// Set the value of the zero flag.
+    pub fn set_zf(&mut self, zf: bool) {
+        self.f.set(Flags::ZERO, zf);
+    }
+
+    /// Set the value of the subtract flag.
+    pub fn set_nf(&mut self, nf: bool) {
+        self.f.set(Flags::ADD_SUBTRACT, nf);
+    }
+
+    /// Set the value of the half carry flag.
+    pub fn set_hf(&mut self, hf: bool) {
+        self.f.set(Flags::HALF_CARRY, hf);
+    }
+
+    /// Set the value of the carry flag.
+    pub fn set_cf(&mut self, cf: bool) {
+        self.f.set(Flags::CARRY, cf);
+    }
+
     /// Handles safe incrementing for the Program Counter (PC) register.
     pub fn inc_pc(&mut self, inc: u16) {
         let (_, overflow) = self.pc.overflowing_add(inc);
