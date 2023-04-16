@@ -42,6 +42,12 @@ impl Cpu {
                 }
             }
 
+            // 0x08 - LD (a16), SP - Load SP into memory at address a16
+            0x08 => {
+                let addr = self.imm16();
+                self.ld16(addr, self.reg.read16(Reg16::SP));
+            }
+
             // LD r16, d16
             // 0x01 - LD BC, d16 - Load 16-bit immediate value d16 into register BC
             // 0x11 - LD DE, d16 - Load 16-bit immediate value d16 into register DE
