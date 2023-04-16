@@ -629,6 +629,7 @@ impl Cpu {
 
     /// ALU DAA operation.
     /// Decimal adjust register A.
+    /// This instruction adjusts register A so that the correct representation of Binary Coded Decimal (BCD) is obtained.
     /// Flags: Z 0 H C
     /// General DAA implementation - https://www.scs.stanford.edu/nyu/04fa/lab/i386/DAA.htm
     /// Implementation pulled from AWJ's post #433 here - https://forums.nesdev.org/viewtopic.php?f=20&t=15944
