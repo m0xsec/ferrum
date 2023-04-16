@@ -39,6 +39,19 @@ impl Cpu {
                 _ => {}
             },
 
+            // ADD HL, r16
+            // 0x09 - ADD HL, BC - Add register BC to register HL
+            // 0x19 - ADD HL, DE - Add register DE to register HL
+            // 0x29 - ADD HL, HL - Add register HL to register HL
+            // 0x39 - ADD HL, SP - Add register SP to register HL
+            0x09 | 0x19 | 0x29 | 0x39 => match op {
+                0x09 => self.alu_add16(Reg16::BC),
+                0x19 => self.alu_add16(Reg16::DE),
+                0x29 => self.alu_add16(Reg16::HL),
+                0x39 => self.alu_add16(Reg16::SP),
+                _ => {}
+            },
+
             // DEC r16
             // 0x0B - DEC BC - Decrement register BC
             // 0x1B - DEC DE - Decrement register DE
@@ -497,5 +510,18 @@ impl Cpu {
         let val = self.mem.borrow().read16(sp);
         self.reg.write16(Reg16::SP, sp + 2);
         val
+    }
+
+    /// ALU 16-bit add operation.
+    /// Add a 16-bit value from a 16-bit register to a 16-bit register HL.
+    /// Flags: - 0 H C
+    fn alu_add16(&mut self, reg: Reg16) {
+        let hl = self.reg.read16(Reg16::HL);
+        let val = self.reg.read16(reg);
+        let result = hl.wrapping_add(val);
+        self.reg.set_nf(false);
+        self.reg.set_hf((hl & 0x0FFF) + (val & 0x0FFF) > 0x0FFF);
+        self.reg.set_cf(hl > 0xFFFF - val);
+        self.ldr16(Reg16::HL, result);
     }
 }
