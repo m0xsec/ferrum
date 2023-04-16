@@ -510,43 +510,7 @@ impl Cpu {
             }
 
             // 0x27 - DAA - Decimal adjust register A
-            // General DAA implementation - https://www.scs.stanford.edu/nyu/04fa/lab/i386/DAA.htm
-            // Implementation pulled from AWJ's post #433 here - https://forums.nesdev.org/viewtopic.php?f=20&t=15944
-            // thank you <3
-            // NOTE: If this fails, it is probably due to how H and N flags are set in the other instructions.
-            //	     DAA is the only thing that actually uses those flags!
-            /*
-                // note: assumes a is a uint8_t and wraps from 0xff to 0
-                if (!n_flag) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
-                if (c_flag || a > 0x99) { a += 0x60; c_flag = 1; }
-                if (h_flag || (a & 0x0f) > 0x09) { a += 0x6; }
-                } else {  // after a subtraction, only adjust if (half-)carry occurred
-                if (c_flag) { a -= 0x60; }
-                if (h_flag) { a -= 0x6; }
-                }
-                // these flags are always updated
-                z_flag = (a == 0); // the usual z flag
-                h_flag = 0; // h flag is always cleared
-            */
-            0x27 => {
-                let mut a = self.reg.read8(Reg8::A);
-                let mut adjust = 0;
-                if self.reg.hf() || (!self.reg.nf() && (a & 0x0F) > 0x09) {
-                    adjust |= 0x06;
-                }
-                if self.reg.cf() || (!self.reg.nf() && a > 0x99) {
-                    adjust |= 0x60;
-                    self.reg.set_cf(true);
-                }
-                if self.reg.nf() {
-                    a = a.wrapping_sub(adjust);
-                } else {
-                    a = a.wrapping_add(adjust);
-                }
-                self.reg.set_zf(a == 0);
-                self.reg.set_hf(false);
-                self.reg.write8(Reg8::A, a);
-            }
+            0x27 => self.alu_daa(),
 
             // 0xE8 - ADD SP, r8 - Add 8-bit signed immediate value to SP
             // Flags: 0 0 H C
@@ -661,5 +625,45 @@ impl Cpu {
         self.reg.set_hf((hl & 0x0FFF) + (val & 0x0FFF) > 0x0FFF);
         self.reg.set_cf(hl > 0xFFFF - val);
         self.ldr16(Reg16::HL, result);
+    }
+
+    /// ALU DAA operation.
+    /// Decimal adjust register A.
+    /// Flags: Z 0 H C
+    /// General DAA implementation - https://www.scs.stanford.edu/nyu/04fa/lab/i386/DAA.htm
+    /// Implementation pulled from AWJ's post #433 here - https://forums.nesdev.org/viewtopic.php?f=20&t=15944
+    /// thank you <3
+    /// NOTE: If this fails, it is probably due to how H and N flags are set in the other instructions.
+    ///       DAA is the only thing that actually uses those flags!
+    ///
+    ///    // note: assumes a is a uint8_t and wraps from 0xff to 0
+    ///    if (!n_flag) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
+    ///    if (c_flag || a > 0x99) { a += 0x60; c_flag = 1; }
+    ///    if (h_flag || (a & 0x0f) > 0x09) { a += 0x6; }
+    ///    } else {  // after a subtraction, only adjust if (half-)carry occurred
+    ///    if (c_flag) { a -= 0x60; }
+    ///    if (h_flag) { a -= 0x6; }
+    ///    }
+    ///   // these flags are always updated
+    ///    z_flag = (a == 0); // the usual z flag
+    ///    h_flag = 0; // h flag is always cleared
+    fn alu_daa(&mut self) {
+        let mut a = self.reg.read8(Reg8::A);
+        let mut adjust = 0;
+        if self.reg.hf() || (!self.reg.nf() && (a & 0x0F) > 0x09) {
+            adjust |= 0x06;
+        }
+        if self.reg.cf() || (!self.reg.nf() && a > 0x99) {
+            adjust |= 0x60;
+            self.reg.set_cf(true);
+        }
+        if self.reg.nf() {
+            a = a.wrapping_sub(adjust);
+        } else {
+            a = a.wrapping_add(adjust);
+        }
+        self.reg.set_zf(a == 0);
+        self.reg.set_hf(false);
+        self.reg.write8(Reg8::A, a);
     }
 }
