@@ -23,6 +23,19 @@
 /// is situated at position $FE and is two bytes big, which means that right after that instruction has finished, the
 /// CPU executes the instruction at $100, which is the entry point code on a cartridge.
 /// https://gbdev.gg8.se/wiki/articles/Gameboy_Bootstrap_ROM
+/// The Boot ROM does the following:
+/// The Ultimate Game Boy Talk (33c3) - 20 min 15 second mark - https://youtu.be/HyzD8pNlpwI?t=1215 - https://media.ccc.de/v/33c3-8029-the_ultimate_game_boy_talk
+/// 1. Init RAM
+/// 2. Init Sound
+/// 3. Set up Logo
+/// 4. Scroll Logo
+/// 5. Play Sound
+/// 6. Scroll Logo
+/// 7. Decode Logo
+/// 8. Logo data
+/// 9. Compare logo
+/// 10. Checksum header
+/// 11. Turn off ROM
 pub static BOOTROM: &[u8] = &[
     0x31, 0xfe, 0xff, 0xaf, 0x21, 0xff, 0x9f, 0x32, 0xcb, 0x7c, 0x20, 0xfb, 0x21, 0x26, 0xff, 0x0e,
     0x11, 0x3e, 0x80, 0x32, 0xe2, 0x0c, 0x3e, 0xf3, 0xe2, 0x32, 0x3e, 0x77, 0x77, 0x3e, 0xfc, 0xe0,
