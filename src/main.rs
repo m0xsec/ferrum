@@ -8,6 +8,9 @@ mod mmu;
 #[macro_use]
 extern crate lazy_static;
 
+// TODO: For graphics and input, use minifb, or Bevy, or something else?
+// https://github.com/emoon/rust_minifb
+
 fn main() {
     env_logger::init();
     info!("ferrum is a WIP. Most functionality is not implemented.");
