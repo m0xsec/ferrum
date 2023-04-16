@@ -18,6 +18,48 @@ impl Cpu {
             // 0x00 - NOP - No operation
             0x00 => {}
 
+            // INC r16
+            // 0x03 - INC BC - Increment register BC
+            // 0x13 - INC DE - Increment register DE
+            // 0x23 - INC HL - Increment register HL
+            // 0x33 - INC SP - Increment register SP
+            0x03 | 0x13 | 0x23 | 0x33 => match op {
+                0x03 => self
+                    .reg
+                    .write16(Reg16::BC, self.reg.read16(Reg16::BC).wrapping_add(1)),
+                0x13 => self
+                    .reg
+                    .write16(Reg16::DE, self.reg.read16(Reg16::DE).wrapping_add(1)),
+                0x23 => self
+                    .reg
+                    .write16(Reg16::HL, self.reg.read16(Reg16::HL).wrapping_add(1)),
+                0x33 => self
+                    .reg
+                    .write16(Reg16::SP, self.reg.read16(Reg16::SP).wrapping_add(1)),
+                _ => {}
+            },
+
+            // DEC r16
+            // 0x0B - DEC BC - Decrement register BC
+            // 0x1B - DEC DE - Decrement register DE
+            // 0x2B - DEC HL - Decrement register HL
+            // 0x3B - DEC SP - Decrement register SP
+            0x0B | 0x1B | 0x2B | 0x3B => match op {
+                0x0B => self
+                    .reg
+                    .write16(Reg16::BC, self.reg.read16(Reg16::BC).wrapping_sub(1)),
+                0x1B => self
+                    .reg
+                    .write16(Reg16::DE, self.reg.read16(Reg16::DE).wrapping_sub(1)),
+                0x2B => self
+                    .reg
+                    .write16(Reg16::HL, self.reg.read16(Reg16::HL).wrapping_sub(1)),
+                0x3B => self
+                    .reg
+                    .write16(Reg16::SP, self.reg.read16(Reg16::SP).wrapping_sub(1)),
+                _ => {}
+            },
+
             // LD r8, d8
             // 0x06 - LD B, d8 - Load immediate 8-bit value into register B
             // 0x0E - LD C, d8 - Load immediate 8-bit value into register C
