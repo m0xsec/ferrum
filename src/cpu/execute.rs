@@ -581,6 +581,55 @@ impl Cpu {
                 self.reg.write8(Reg8::A, result);
             }
 
+            // ADC A, r8
+            // 0x88 - ADC A, B - Add register B + carry flag to register A
+            // 0x89 - ADC A, C - Add register C + carry flag to register A
+            // 0x8A - ADC A, D - Add register D + carry flag to register A
+            // 0x8B - ADC A, E - Add register E + carry flag to register A
+            // 0x8C - ADC A, H - Add register H + carry flag to register A
+            // 0x8D - ADC A, L - Add register L + carry flag to register A
+            // 0x8F - ADC A, A - Add register A + carry flag to register A
+            0x88 | 0x89 | 0x8A | 0x8B | 0x8C | 0x8D | 0x8F => match op {
+                0x88 => self.alu_adc8(Reg8::B),
+                0x89 => self.alu_adc8(Reg8::C),
+                0x8A => self.alu_adc8(Reg8::D),
+                0x8B => self.alu_adc8(Reg8::E),
+                0x8C => self.alu_adc8(Reg8::H),
+                0x8D => self.alu_adc8(Reg8::L),
+                0x8F => self.alu_adc8(Reg8::A),
+                _ => {}
+            },
+
+            // 0x8E - ADC A, (HL) - Add memory at register HL + carry flag to register A
+            // Flags: Z 0 H C
+            0x8E => {
+                let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                let a = self.reg.read8(Reg8::A);
+                let carry = if self.reg.cf() { 1 } else { 0 };
+                let result = a.wrapping_add(val).wrapping_add(carry);
+                self.reg.set_zf(result == 0);
+                self.reg.set_nf(false);
+                self.reg.set_hf((a & 0x0F) + (val & 0x0F) + carry > 0x0F);
+                self.reg
+                    .set_cf(u16::from(a) + u16::from(val) + u16::from(carry) > 0xFF);
+                self.reg.write8(Reg8::A, result);
+            }
+
+            // 0xCE - ADC A, d8 - Add 8-bit immediate value + carry flag to register A
+            // Flags: Z 0 H C
+            0xCE => {
+                let val = self.imm8();
+                let a = self.reg.read8(Reg8::A);
+                let carry = if self.reg.cf() { 1 } else { 0 };
+                let result = a.wrapping_add(val).wrapping_add(carry);
+                self.reg.set_zf(result == 0);
+                self.reg.set_nf(false);
+                self.reg.set_hf((a & 0x0F) + (val & 0x0F) + carry > 0x0F);
+                self.reg
+                    .set_cf(u16::from(a) + u16::from(val) + u16::from(carry) > 0xFF);
+                self.reg.write8(Reg8::A, result);
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
@@ -693,6 +742,23 @@ impl Cpu {
         self.reg.set_hf((hl & 0x0FFF) + (val & 0x0FFF) > 0x0FFF);
         self.reg.set_cf(hl > 0xFFFF - val);
         self.reg.write16(Reg16::HL, result);
+    }
+
+    /// ALU 8-bit add carry operation.
+    /// Add a 8-bit value from a 8-bit register to a 8-bit register A with carry. (A = A + val + C).
+    /// Flags: Z 0 H C
+    /// NOTE: This is the same as alu_add8, but with the carry flag added.
+    fn alu_adc8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let c = if self.reg.cf() { 1 } else { 0 };
+        let result = a.wrapping_add(val).wrapping_add(c);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf((a & 0x0F) + (val & 0x0F) + c > 0x0F);
+        self.reg
+            .set_cf(u16::from(a) + u16::from(val) + u16::from(c) > 0xFF);
+        self.reg.write8(Reg8::A, result);
     }
 
     /// ALU DAA operation.
