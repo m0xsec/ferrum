@@ -652,6 +652,35 @@ impl Cpu {
                 _ => {}
             },
 
+            // AND A, r8 & AND A, (HL) & AND A, d8
+            // 0xA0 - AND A, B - AND register B with register A
+            // 0xA1 - AND A, C - AND register C with register A
+            // 0xA2 - AND A, D - AND register D with register A
+            // 0xA3 - AND A, E - AND register E with register A
+            // 0xA4 - AND A, H - AND register H with register A
+            // 0xA5 - AND A, L - AND register L with register A
+            // 0xA6 - AND A, (HL) - AND memory at register HL with register A
+            // 0xA7 - AND A, A - AND register A with register A
+            // 0xE6 - AND A, d8 - AND 8-bit immediate value with register A
+            0xA0 | 0xA1 | 0xA2 | 0xA3 | 0xA4 | 0xA5 | 0xA6 | 0xA7 | 0xE6 => match op {
+                0xA0 => self.alu_andr8(Reg8::B),
+                0xA1 => self.alu_andr8(Reg8::C),
+                0xA2 => self.alu_andr8(Reg8::D),
+                0xA3 => self.alu_andr8(Reg8::E),
+                0xA4 => self.alu_andr8(Reg8::H),
+                0xA5 => self.alu_andr8(Reg8::L),
+                0xA6 => {
+                    let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                    self.alu_and8(val);
+                }
+                0xA7 => self.alu_andr8(Reg8::A),
+                0xE6 => {
+                    let val = self.imm8();
+                    self.alu_and8(val);
+                }
+                _ => {}
+            },
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
@@ -865,6 +894,33 @@ impl Cpu {
         self.reg.set_nf(true);
         self.reg.set_hf((a & 0x0F) < (val & 0x0F) + c);
         self.reg.set_cf(u16::from(a) < u16::from(result));
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit AND operation.
+    /// Bitwise AND a 8-bit value from a 8-bit register with a 8-bit register A.
+    /// Flags: Z 0 1 0
+    fn alu_andr8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let result = a & val;
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(true);
+        self.reg.set_cf(false);
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit AND operation.
+    /// Bitwise AND a 8-bit value with a 8-bit register A.
+    /// Flags: Z 0 1 0
+    fn alu_and8(&mut self, val: u8) {
+        let a = self.reg.read8(Reg8::A);
+        let result = a & val;
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(true);
+        self.reg.set_cf(false);
         self.reg.write8(Reg8::A, result);
     }
 
