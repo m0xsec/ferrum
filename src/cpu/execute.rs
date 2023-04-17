@@ -681,6 +681,35 @@ impl Cpu {
                 _ => {}
             },
 
+            // XOR A, r8 & XOR A, (HL) & XOR A, d8
+            // 0xA8 - XOR A, B - XOR register B with register A
+            // 0xA9 - XOR A, C - XOR register C with register A
+            // 0xAA - XOR A, D - XOR register D with register A
+            // 0xAB - XOR A, E - XOR register E with register A
+            // 0xAC - XOR A, H - XOR register H with register A
+            // 0xAD - XOR A, L - XOR register L with register A
+            // 0xAE - XOR A, (HL) - XOR memory at register HL with register A
+            // 0xAF - XOR A, A - XOR register A with register A
+            // 0xEE - XOR A, d8 - XOR 8-bit immediate value with register A
+            0xA8 | 0xA9 | 0xAA | 0xAB | 0xAC | 0xAD | 0xAE | 0xAF | 0xEE => match op {
+                0xA8 => self.alu_xorr8(Reg8::B),
+                0xA9 => self.alu_xorr8(Reg8::C),
+                0xAA => self.alu_xorr8(Reg8::D),
+                0xAB => self.alu_xorr8(Reg8::E),
+                0xAC => self.alu_xorr8(Reg8::H),
+                0xAD => self.alu_xorr8(Reg8::L),
+                0xAE => {
+                    let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                    self.alu_xor8(val);
+                }
+                0xAF => self.alu_xorr8(Reg8::A),
+                0xEE => {
+                    let val = self.imm8();
+                    self.alu_xor8(val);
+                }
+                _ => {}
+            },
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
@@ -920,6 +949,33 @@ impl Cpu {
         self.reg.set_zf(result == 0);
         self.reg.set_nf(false);
         self.reg.set_hf(true);
+        self.reg.set_cf(false);
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit XOR operation.
+    /// Bitwise XOR a 8-bit value from a 8-bit register with a 8-bit register A.
+    /// Flags: Z 0 0 0
+    fn alu_xorr8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let result = a ^ val;
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(false);
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit XOR operation.
+    /// Bitwise XOR a 8-bit value with a 8-bit register A.
+    /// Flags: Z 0 0 0
+    fn alu_xor8(&mut self, val: u8) {
+        let a = self.reg.read8(Reg8::A);
+        let result = a ^ val;
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
         self.reg.set_cf(false);
         self.reg.write8(Reg8::A, result);
     }

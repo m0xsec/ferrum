@@ -23,6 +23,7 @@
         "subr",
         "VRAM",
         "WRAM",
-        "WRAMX"
+        "WRAMX",
+        "xorr"
     ]
 }
