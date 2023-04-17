@@ -739,6 +739,35 @@ impl Cpu {
                 _ => {}
             },
 
+            // CP A, r8 & CP A, (HL) & CP A, d8
+            // 0xB8 - CP A, B - Compare register B with register A
+            // 0xB9 - CP A, C - Compare register C with register A
+            // 0xBA - CP A, D - Compare register D with register A
+            // 0xBB - CP A, E - Compare register E with register A
+            // 0xBC - CP A, H - Compare register H with register A
+            // 0xBD - CP A, L - Compare register L with register A
+            // 0xBE - CP A, (HL) - Compare memory at register HL with register A
+            // 0xBF - CP A, A - Compare register A with register A
+            // 0xFE - CP A, d8 - Compare 8-bit immediate value with register A
+            0xB8 | 0xB9 | 0xBA | 0xBB | 0xBC | 0xBD | 0xBE | 0xBF | 0xFE => match op {
+                0xB8 => self.alu_cpr8(Reg8::B),
+                0xB9 => self.alu_cpr8(Reg8::C),
+                0xBA => self.alu_cpr8(Reg8::D),
+                0xBB => self.alu_cpr8(Reg8::E),
+                0xBC => self.alu_cpr8(Reg8::H),
+                0xBD => self.alu_cpr8(Reg8::L),
+                0xBE => {
+                    let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                    self.alu_cp8(val);
+                }
+                0xBF => self.alu_cpr8(Reg8::A),
+                0xFE => {
+                    let val = self.imm8();
+                    self.alu_cp8(val);
+                }
+                _ => {}
+            },
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
@@ -1034,6 +1063,31 @@ impl Cpu {
         self.reg.set_hf(false);
         self.reg.set_cf(false);
         self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit compare operation.
+    /// Compare a 8-bit value from a 8-bit register with a 8-bit register A.
+    /// Flags: Z 1 H C
+    fn alu_cpr8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let result = a.wrapping_sub(val);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((a & 0x0F) < (val & 0x0F));
+        self.reg.set_cf(u16::from(a) < u16::from(result));
+    }
+
+    /// ALU 8-bit compare operation.
+    /// Compare a 8-bit value with a 8-bit register A.
+    /// Flags: Z 1 H C
+    fn alu_cp8(&mut self, val: u8) {
+        let a = self.reg.read8(Reg8::A);
+        let result = a.wrapping_sub(val);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((a & 0x0F) < (val & 0x0F));
+        self.reg.set_cf(u16::from(a) < u16::from(result));
     }
 
     /// ALU DAA operation.
