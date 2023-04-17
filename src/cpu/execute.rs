@@ -880,6 +880,57 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            // 0x28 - JR Z, r8 - Add 8-bit signed immediate value to PC if zero flag is set
+            // Cycles if taken: 12
+            // Cycles if not taken: 8
+            0x28 => {
+                let val = self.imm8() as i8;
+                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                if self.reg.zf() {
+                    self.reg.write16(Reg16::PC, addr as u16);
+                    jmp_cycles = 12;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0x30 - JR NC, r8 - Add 8-bit signed immediate value to PC if carry flag is not set
+            // Cycles if taken: 12
+            // Cycles if not taken: 8
+            0x30 => {
+                let val = self.imm8() as i8;
+                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                if !self.reg.cf() {
+                    self.reg.write16(Reg16::PC, addr as u16);
+                    jmp_cycles = 12;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0x38 - JR C, r8 - Add 8-bit signed immediate value to PC if carry flag is set
+            // Cycles if taken: 12
+            // Cycles if not taken: 8
+            0x38 => {
+                let val = self.imm8() as i8;
+                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                if self.reg.cf() {
+                    self.reg.write16(Reg16::PC, addr as u16);
+                    jmp_cycles = 12;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
