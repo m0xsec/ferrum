@@ -11,6 +11,9 @@ impl Cpu {
     pub(super) fn op_execute(&mut self, op: u8) -> (u8, u32) {
         let opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
         let opcode = opcodes.get(&op).unwrap();
+        let mut is_jmp = false;
+        let mut jmp_cycles: u32 = 0;
+        let mut jmp_len: u8 = 0;
 
         info!("{:#02x} {}", opcode.op, &opcode.mnemonic);
 
@@ -768,11 +771,39 @@ impl Cpu {
                 _ => {}
             },
 
+            // 0xC2 - JP NZ, a16 - Jump to 16-bit immediate value if zero flag is not set
+            // Cycles if taken: 16
+            // Cycles if not taken: 12
+            0xC2 => {
+                let addr = self.imm16();
+                if !self.reg.zf() {
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 16;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xC3 - JP a16 - Jump to 16-bit immediate value
+            0xC3 => {
+                let addr = self.imm16();
+                self.reg.write16(Reg16::PC, addr);
+                jmp_cycles = opcode.cycles;
+                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                is_jmp = true;
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
         }
 
+        if is_jmp {
+            return (jmp_len, jmp_cycles);
+        }
         (opcode.length, opcode.cycles)
     }
 }
