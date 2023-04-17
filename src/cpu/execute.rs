@@ -594,6 +594,64 @@ impl Cpu {
                 _ => {}
             },
 
+            // SUB A, r8 & SUB A, (HL) & SUB A, d8
+            // 0x90 - SUB A, B - Subtract register B from register A
+            // 0x91 - SUB A, C - Subtract register C from register A
+            // 0x92 - SUB A, D - Subtract register D from register A
+            // 0x93 - SUB A, E - Subtract register E from register A
+            // 0x94 - SUB A, H - Subtract register H from register A
+            // 0x95 - SUB A, L - Subtract register L from register A
+            // 0x96 - SUB A, (HL) - Subtract memory at register HL from register A
+            // 0x97 - SUB A, A - Subtract register A from register A
+            // 0xD6 - SUB A, d8 - Subtract 8-bit immediate value from register A
+            0x90 | 0x91 | 0x92 | 0x93 | 0x94 | 0x95 | 0x96 | 0x97 | 0xD6 => match op {
+                0x90 => self.alu_subr8(Reg8::B),
+                0x91 => self.alu_subr8(Reg8::C),
+                0x92 => self.alu_subr8(Reg8::D),
+                0x93 => self.alu_subr8(Reg8::E),
+                0x94 => self.alu_subr8(Reg8::H),
+                0x95 => self.alu_subr8(Reg8::L),
+                0x96 => {
+                    let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                    self.alu_sub8(val);
+                }
+                0x97 => self.alu_subr8(Reg8::A),
+                0xD6 => {
+                    let val = self.imm8();
+                    self.alu_sub8(val);
+                }
+                _ => {}
+            },
+
+            // SBC A, r8 & SBC A, (HL) & SBC A, d8
+            // 0x98 - SBC A, B - Subtract register B + carry flag from register A
+            // 0x99 - SBC A, C - Subtract register C + carry flag from register A
+            // 0x9A - SBC A, D - Subtract register D + carry flag from register A
+            // 0x9B - SBC A, E - Subtract register E + carry flag from register A
+            // 0x9C - SBC A, H - Subtract register H + carry flag from register A
+            // 0x9D - SBC A, L - Subtract register L + carry flag from register A
+            // 0x9E - SBC A, (HL) - Subtract memory at register HL + carry flag from register A
+            // 0x9F - SBC A, A - Subtract register A + carry flag from register A
+            // 0xDE - SBC A, d8 - Subtract 8-bit immediate value + carry flag from register A
+            0x98 | 0x99 | 0x9A | 0x9B | 0x9C | 0x9D | 0x9E | 0x9F | 0xDE => match op {
+                0x98 => self.alu_sbcr8(Reg8::B),
+                0x99 => self.alu_sbcr8(Reg8::C),
+                0x9A => self.alu_sbcr8(Reg8::D),
+                0x9B => self.alu_sbcr8(Reg8::E),
+                0x9C => self.alu_sbcr8(Reg8::H),
+                0x9D => self.alu_sbcr8(Reg8::L),
+                0x9E => {
+                    let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                    self.alu_sbc8(val);
+                }
+                0x9F => self.alu_sbcr8(Reg8::A),
+                0xDE => {
+                    let val = self.imm8();
+                    self.alu_sbc8(val);
+                }
+                _ => {}
+            },
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
@@ -751,6 +809,62 @@ impl Cpu {
         self.reg.set_hf((a & 0x0F) + (val & 0x0F) + c > 0x0F);
         self.reg
             .set_cf(u16::from(a) + u16::from(val) + u16::from(c) > 0xFF);
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit subtract operation.
+    /// Subtract a 8-bit value from a 8-bit register from a 8-bit register A.
+    /// Flags: Z 1 H C
+    fn alu_subr8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let result = a.wrapping_sub(val);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((a & 0x0F) < (val & 0x0F));
+        self.reg.set_cf(u16::from(a) < u16::from(val));
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit subtract operation.
+    /// Subtract a 8-bit value from a 8-bit register A.
+    /// Flags: Z 1 H C
+    fn alu_sub8(&mut self, val: u8) {
+        let a = self.reg.read8(Reg8::A);
+        let result = a.wrapping_sub(val);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((a & 0x0F) < (val & 0x0F));
+        self.reg.set_cf(u16::from(a) < u16::from(val));
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit subtract carry operation.
+    /// Subtract a 8-bit value from a 8-bit register from a 8-bit register A with carry. (A = A - val - C).
+    /// Flags: Z 1 H C
+    fn alu_sbcr8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let c = if self.reg.cf() { 1 } else { 0 };
+        let result = a.wrapping_sub(val).wrapping_sub(c);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((a & 0x0F) < (val & 0x0F) + c);
+        self.reg.set_cf(u16::from(a) < u16::from(result));
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit subtract carry operation.
+    /// Subtract a 8-bit value from a 8-bit register A with carry. (A = A - val - C).
+    /// Flags: Z 1 H C
+    fn alu_sbc8(&mut self, val: u8) {
+        let a = self.reg.read8(Reg8::A);
+        let c = if self.reg.cf() { 1 } else { 0 };
+        let result = a.wrapping_sub(val).wrapping_sub(c);
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(true);
+        self.reg.set_hf((a & 0x0F) < (val & 0x0F) + c);
+        self.reg.set_cf(u16::from(a) < u16::from(result));
         self.reg.write8(Reg8::A, result);
     }
 
