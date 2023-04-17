@@ -1085,6 +1085,23 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            // 0xC7 - RST 00H - Restart at address 0x0000
+            // 0xCF - RST 08H - Restart at address 0x0008
+            // 0xD7 - RST 10H - Restart at address 0x0010
+            // 0xDF - RST 18H - Restart at address 0x0018
+            // 0xE7 - RST 20H - Restart at address 0x0020
+            // 0xEF - RST 28H - Restart at address 0x0028
+            // 0xF7 - RST 30H - Restart at address 0x0030
+            // 0xFF - RST 38H - Restart at address 0x0038
+            0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
+                let addr = (op & 0x38) as u16;
+                self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                self.reg.write16(Reg16::PC, addr);
+                jmp_cycles = opcode.cycles;
+                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                is_jmp = true;
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
