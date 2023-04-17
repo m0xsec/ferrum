@@ -796,6 +796,63 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            // 0xCA - JP Z, a16 - Jump to 16-bit immediate value if zero flag is set
+            // Cycles if taken: 16
+            // Cycles if not taken: 12
+            0xCA => {
+                let addr = self.imm16();
+                if self.reg.zf() {
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 16;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xD2 - JP NC, a16 - Jump to 16-bit immediate value if carry flag is not set
+            // Cycles if taken: 16
+            // Cycles if not taken: 12
+            0xD2 => {
+                let addr = self.imm16();
+                if !self.reg.cf() {
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 16;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xDA - JP C, a16 - Jump to 16-bit immediate value if carry flag is set
+            // Cycles if taken: 16
+            // Cycles if not taken: 12
+            0xDA => {
+                let addr = self.imm16();
+                if self.reg.cf() {
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 16;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xE9 - JP (HL) - Jump to address stored in HL
+            0xE9 => {
+                let addr = self.reg.read16(Reg16::HL);
+                self.reg.write16(Reg16::PC, addr);
+                jmp_cycles = opcode.cycles;
+                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                is_jmp = true;
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
