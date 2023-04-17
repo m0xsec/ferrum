@@ -27,6 +27,15 @@ impl GameBoy {
             self.mmu.borrow_mut().write8(addr as u16, *val);
         }
     }
+
+    /// Loads a test ROM into memory from a file.
+    fn read_test_rom(&mut self, path: &str) {
+        info!("Loading test rom, {}.", path);
+        let rom = std::fs::read(path).unwrap();
+        for (addr, val) in rom.iter().enumerate() {
+            self.mmu.borrow_mut().write8(addr as u16, *val);
+        }
+    }
 }
 
 impl GameBoy {
@@ -38,16 +47,28 @@ impl GameBoy {
     }
 
     /// Loads the Gameboy DMG-01 Boot ROM
-    pub fn boot_rom(&mut self) {
+    pub fn boot_rom(&mut self, testing: bool) {
+        // If we are testing, skip the boot rom and load the test ROM directly.
+        // TODO: Once all the opcodes are implemented, we can remove this and actually have the boot ROM run.
+        if testing {
+            info!("Testing mode, skipping boot rom.");
+            self.read_test_rom("roms/test/blargg/cpu_instrs/individual/03-op sp,hl.gb");
+            self.cpu.test_set_boot_regs();
+            return;
+        }
+
         // Read boot ROM into memory
         self.read_boot_rom();
         self.cpu.dump_registers();
     }
 
     /// Run Gameboy emulation
-    pub fn run(&mut self) {
+    pub fn run(&mut self, testing: bool) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
         loop {
+            if testing {
+                self.cpu.test_read_blargg_serial();
+            }
             self.cpu.dump_registers();
             self.cpu.cycle();
         }

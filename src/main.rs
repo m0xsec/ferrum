@@ -15,13 +15,20 @@ extern crate lazy_static;
 // Can just dump GB VRAM to the minifb window buffer :O
 // Bevy would give more flexibility, but getting the ECS to play nice with the Gameboy's architecture might be tricky...
 
+// TODO: Move testing flag to a command line arg later.
+const TESTING: bool = true;
+
 fn main() {
     env_logger::init();
     info!("ferrum is a WIP. Most functionality is not implemented.");
 
+    if TESTING {
+        info!("Testing mode enabled.");
+    }
+
     // TODO: ROM loading, launch the Gameboy emulator threads, etc, etc
     let mut ferrum = gb::GameBoy::power_on();
-    ferrum.boot_rom();
+    ferrum.boot_rom(TESTING);
     warn!("Remaining Gameboy boot process is not yet implemented.");
-    ferrum.run();
+    ferrum.run(TESTING);
 }
