@@ -710,6 +710,35 @@ impl Cpu {
                 _ => {}
             },
 
+            // OR A, r8 & OR A, (HL) & OR A, d8
+            // 0xB0 - OR A, B - OR register B with register A
+            // 0xB1 - OR A, C - OR register C with register A
+            // 0xB2 - OR A, D - OR register D with register A
+            // 0xB3 - OR A, E - OR register E with register A
+            // 0xB4 - OR A, H - OR register H with register A
+            // 0xB5 - OR A, L - OR register L with register A
+            // 0xB6 - OR A, (HL) - OR memory at register HL with register A
+            // 0xB7 - OR A, A - OR register A with register A
+            // 0xF6 - OR A, d8 - OR 8-bit immediate value with register A
+            0xB0 | 0xB1 | 0xB2 | 0xB3 | 0xB4 | 0xB5 | 0xB6 | 0xB7 | 0xF6 => match op {
+                0xB0 => self.alu_orr8(Reg8::B),
+                0xB1 => self.alu_orr8(Reg8::C),
+                0xB2 => self.alu_orr8(Reg8::D),
+                0xB3 => self.alu_orr8(Reg8::E),
+                0xB4 => self.alu_orr8(Reg8::H),
+                0xB5 => self.alu_orr8(Reg8::L),
+                0xB6 => {
+                    let val = self.mem.borrow().read8(self.reg.read16(Reg16::HL));
+                    self.alu_or8(val);
+                }
+                0xB7 => self.alu_orr8(Reg8::A),
+                0xF6 => {
+                    let val = self.imm8();
+                    self.alu_or8(val);
+                }
+                _ => {}
+            },
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
@@ -973,6 +1002,33 @@ impl Cpu {
     fn alu_xor8(&mut self, val: u8) {
         let a = self.reg.read8(Reg8::A);
         let result = a ^ val;
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(false);
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit OR operation.
+    /// Bitwise OR a 8-bit value from a 8-bit register with a 8-bit register A.
+    /// Flags: Z 0 0 0
+    fn alu_orr8(&mut self, reg: Reg8) {
+        let a = self.reg.read8(Reg8::A);
+        let val = self.reg.read8(reg);
+        let result = a | val;
+        self.reg.set_zf(result == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(false);
+        self.reg.write8(Reg8::A, result);
+    }
+
+    /// ALU 8-bit OR operation.
+    /// Bitwise OR a 8-bit value with a 8-bit register A.
+    /// Flags: Z 0 0 0
+    fn alu_or8(&mut self, val: u8) {
+        let a = self.reg.read8(Reg8::A);
+        let result = a | val;
         self.reg.set_zf(result == 0);
         self.reg.set_nf(false);
         self.reg.set_hf(false);
