@@ -29,6 +29,7 @@ impl GameBoy {
     }
 
     /// Loads a test ROM into memory from a file.
+    /// NOTE: We will have a similar function for loading a ROM from a file later on.
     fn read_test_rom(&mut self, path: &str) {
         info!("Loading test rom, {}.", path);
         let rom = std::fs::read(path).unwrap();
