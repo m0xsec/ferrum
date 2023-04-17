@@ -1,4 +1,7 @@
+use std::{cell::RefCell, rc::Rc};
+
 use self::memory::Memory;
+use super::cpu::interrupts::InterruptFlags;
 use log::{info, warn};
 pub mod memory;
 
@@ -49,6 +52,9 @@ pub struct Mmu {
     /// I/O Registers.
     io: [u8; (0xFF7F - 0xFF00) + 1],
 
+    /// Interrupt Flags (IF).
+    if_: Rc<RefCell<InterruptFlags>>,
+
     /// High RAM (HRAM).
     hram: [u8; (0xFFFE - 0xFF80) + 1],
 
@@ -58,6 +64,7 @@ pub struct Mmu {
 
 impl Mmu {
     pub fn new() -> Self {
+        let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
         Self {
             rom0: [0x00; 0x3FFF + 1],
             romx: [0x00; (0x7FFF - 0x4000) + 1],
@@ -67,6 +74,7 @@ impl Mmu {
             wramx: [0x00; (0xDFFF - 0xD000) + 1],
             oam: [0x00; (0xFE9F - 0xFE00) + 1],
             io: [0x00; (0xFF7F - 0xFF00) + 1],
+            if_: interrupt_flags,
             hram: [0x00; (0xFFFE - 0xFF80) + 1],
             ie: 0x00,
         }
@@ -84,7 +92,16 @@ impl Memory for Mmu {
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF],
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF],
             0xFE00..=0xFE9F => self.oam[addr as usize - 0xFE00],
-            0xFF00..=0xFF7F => self.io[addr as usize - 0xFF00],
+            0xFF00..=0xFF7F => {
+                match addr {
+                    // TODO: Implement the rest of the IO registers.
+                    0xFF0F => {
+                        // Interrupt Flags
+                        self.if_.borrow().get_raw()
+                    }
+                    _ => self.io[addr as usize - 0xFF00],
+                }
+            }
             0xFF80..=0xFFFE => self.hram[addr as usize - 0xFF80],
             0xFFFF => self.ie,
             _ => {
@@ -108,7 +125,16 @@ impl Memory for Mmu {
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF] = val,
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF] = val,
             0xFE00..=0xFE9F => self.oam[addr as usize - 0xFE00] = val,
-            0xFF00..=0xFF7F => self.io[addr as usize - 0xFF00] = val,
+            0xFF00..=0xFF7F => {
+                match addr {
+                    //TODO: Implement the rest of the IO registers.
+                    0xFF0F => {
+                        // Interrupt Flags
+                        self.if_.borrow_mut().set_raw(val);
+                    }
+                    _ => self.io[addr as usize - 0xFF00] = val,
+                }
+            }
             0xFF80..=0xFFFE => self.hram[addr as usize - 0xFF80] = val,
             0xFFFF => self.ie = val,
             _ => {

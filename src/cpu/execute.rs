@@ -1163,7 +1163,7 @@ impl Cpu {
 
     /// Stack push operation.
     /// Push a 16-bit value (val) onto the stack.
-    fn stack_push(&mut self, val: u16) {
+    pub(super) fn stack_push(&mut self, val: u16) {
         let sp = self.reg.read16(Reg16::SP);
         self.ld16(sp - 2, val);
         self.reg.write16(Reg16::SP, sp - 2);

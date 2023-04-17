@@ -15,6 +15,7 @@
         "Gameboy",
         "HRAM",
         "instrs",
+        "Joypad",
         "minifb",
         "regs",
         "RETI",

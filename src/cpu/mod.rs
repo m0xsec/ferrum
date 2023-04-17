@@ -4,6 +4,7 @@ use crate::mmu::memory::Memory;
 use std::cell::RefCell;
 use std::rc::Rc;
 mod execute;
+pub mod interrupts;
 mod opcodes;
 mod registers;
 
@@ -60,7 +61,7 @@ impl Cpu {
             */
             reg: registers::Registers::new(),
             mem,
-            ime: false,
+            ime: true,
 
             // 4.194304 MHz was the highest freq the DMG could run at.
             cycles: 0,
@@ -102,8 +103,84 @@ impl Cpu {
         }
     }
 
+    /// Handles CPU Interrupts and returns the number of cycles the interrupt took.
+    pub fn handle_interrupts(&mut self) -> u32 {
+        // Interrupts are handled by the CPU, not the MMU.
+        // The IME (interrupt master enable) flag is reset by DI and prohibits all interrupts. It is set by EI and
+        // acknowledges the interrupt setting by the IE register.
+        // 1. When an interrupt is generated, the IF flag will be set.
+        // 2. If the IME flag is set & the corresponding IE flag is set, the following 3 steps are performed.
+        // 3. Reset the IME flag and prevent all interrupts.
+        // 4. The PC (program counter) is pushed onto the stack.
+        // 5. Jump to the starting address of the interrupt.
+
+        // If CPU is halted and interrupts are disabled, do nothing.
+        if self.halt && !self.ime {
+            return 0;
+        }
+
+        // Get Interrupt Enable and Interrupt Flag registers
+        let ie = self.mem.borrow().read8(0xFFFF);
+        let if_ = self.mem.borrow().read8(0xFF0F);
+
+        // If interrupts are disabled, do nothing.
+        if !self.ime {
+            return 0;
+        }
+
+        // If no interrupts are enabled, do nothing.
+        if ie == 0x00 {
+            return 0;
+        }
+
+        // If no interrupts are pending, do nothing.
+        if if_ == 0x00 {
+            return 0;
+        }
+
+        // If interrupts are enabled, but none are pending, do nothing.
+        if ie & if_ == 0x00 {
+            return 0;
+        }
+
+        // If we get here, we have an interrupt to handle.
+        // Reset IME and CPU halt.
+        self.ime = false;
+        self.halt = false;
+
+        // Push the current PC onto the stack
+        let pc = self.reg.read16(registers::Reg16::PC);
+        self.stack_push(pc);
+
+        // Consume the interrupt, and write the remaining interrupts back to the IF register.
+        let i = (if_ & ie).trailing_zeros();
+        self.mem.borrow_mut().write8(0xFF0F, if_ & !(1 << i));
+
+        // Jump to the interrupt
+        let i_addr = match i {
+            // V-Blank
+            0 => 0x0040,
+            // LCD STAT
+            1 => 0x0048,
+            // Timer
+            2 => 0x0050,
+            // Serial
+            3 => 0x0058,
+            // Joypad
+            4 => 0x0060,
+            _ => panic!("Invalid interrupt!"),
+        };
+        self.reg.write16(registers::Reg16::PC, i_addr);
+
+        4
+    }
+
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
     pub fn cycle(&mut self) {
+        // Handle interrupts
+        self.cycles += self.handle_interrupts();
+
+        // If CPU is halted, do nothing.
         if !self.halt {
             let op = self.fetch();
             let (len, cycle) = self.op_execute(op);
