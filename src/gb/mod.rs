@@ -52,7 +52,7 @@ impl GameBoy {
         // If we are testing, skip the boot rom and load the test ROM directly.
         // TODO: Once all the opcodes are implemented, we can remove this and actually have the boot ROM run.
         if testing {
-            info!("Testing mode, skipping boot rom.");
+            warn!("Testing mode detected, skipping Boot ROM.");
             self.read_test_rom("roms/test/blargg/cpu_instrs/individual/03-op sp,hl.gb");
             self.cpu.test_set_boot_regs();
             return;

@@ -23,7 +23,7 @@ fn main() {
     info!("ferrum is a WIP. Most functionality is not implemented.");
 
     if TESTING {
-        info!("Testing mode enabled.");
+        warn!("Testing mode enabled!");
     }
 
     // TODO: ROM loading, launch the Gameboy emulator threads, etc, etc
