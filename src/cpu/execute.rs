@@ -1085,6 +1085,16 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            // 0xD9 - RETI - Return and enable interrupts
+            0xD9 => {
+                let addr = self.stack_pop();
+                self.reg.write16(Reg16::PC, addr);
+                self.ime = true;
+                jmp_cycles = opcode.cycles;
+                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                is_jmp = true;
+            }
+
             // 0xC7 - RST 00H - Restart at address 0x0000
             // 0xCF - RST 08H - Restart at address 0x0008
             // 0xD7 - RST 10H - Restart at address 0x0010

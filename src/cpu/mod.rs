@@ -16,6 +16,9 @@ pub struct Cpu {
     /// Memory
     mem: Rc<RefCell<dyn Memory>>,
 
+    /// Interrupt Master Enable Flag (IME)
+    ime: bool,
+
     /// Clock Cycles
     /// Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
     /// 4.194304 MHz was the highest freq the DMG could run at.
@@ -57,6 +60,7 @@ impl Cpu {
             */
             reg: registers::Registers::new(),
             mem,
+            ime: false,
 
             // 4.194304 MHz was the highest freq the DMG could run at.
             cycles: 0,
