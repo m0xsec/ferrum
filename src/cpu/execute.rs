@@ -1012,6 +1012,79 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            // 0xC0 - RET NZ - Return if zero flag is not set
+            // Cycles if taken: 20
+            // Cycles if not taken: 8
+            0xC0 => {
+                if !self.reg.zf() {
+                    let addr = self.stack_pop();
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 20;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xC8 - RET Z - Return if zero flag is set
+            // Cycles if taken: 20
+            // Cycles if not taken: 8
+            0xC8 => {
+                if self.reg.zf() {
+                    let addr = self.stack_pop();
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 20;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xC9 - RET - Return
+            0xC9 => {
+                let addr = self.stack_pop();
+                self.reg.write16(Reg16::PC, addr);
+                jmp_cycles = opcode.cycles;
+                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                is_jmp = true;
+            }
+
+            // 0xD0 - RET NC - Return if carry flag is not set
+            // Cycles if taken: 20
+            // Cycles if not taken: 8
+            0xD0 => {
+                if !self.reg.cf() {
+                    let addr = self.stack_pop();
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 20;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xD8 - RET C - Return if carry flag is set
+            // Cycles if taken: 20
+            // Cycles if not taken: 8
+            0xD8 => {
+                if self.reg.cf() {
+                    let addr = self.stack_pop();
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 20;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
