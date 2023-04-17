@@ -11,6 +11,9 @@ impl Cpu {
     pub(super) fn op_execute(&mut self, op: u8) -> (u8, u32) {
         let opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
         let opcode = opcodes.get(&op).unwrap();
+
+        // Jump instructions often have a different number of cycles depending on whether an action is taken or not.
+        // Jump instructions also directly change the PC, so jmp_len will allow us to skip the normal PC increment.
         let mut is_jmp = false;
         let mut jmp_cycles: u32 = 0;
         let mut jmp_len: u8 = 0;
@@ -926,6 +929,84 @@ impl Cpu {
                     jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
                     jmp_cycles = 8;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xC4 - CALL NZ, a16 - Call 16-bit immediate value if zero flag is not set
+            // Cycles if taken: 24
+            // Cycles if not taken: 12
+            0xC4 => {
+                let addr = self.imm16();
+                if !self.reg.zf() {
+                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 24;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xCC - CALL Z, a16 - Call 16-bit immediate value if zero flag is set
+            // Cycles if taken: 24
+            // Cycles if not taken: 12
+            0xCC => {
+                let addr = self.imm16();
+                if self.reg.zf() {
+                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 24;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xCD - CALL a16 - Call 16-bit immediate value
+            0xCD => {
+                let addr = self.imm16();
+                self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                self.reg.write16(Reg16::PC, addr);
+                jmp_cycles = opcode.cycles;
+                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                is_jmp = true;
+            }
+
+            // 0xD4 - CALL NC, a16 - Call 16-bit immediate value if carry flag is not set
+            // Cycles if taken: 24
+            // Cycles if not taken: 12
+            0xD4 => {
+                let addr = self.imm16();
+                if !self.reg.cf() {
+                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 24;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
+                    jmp_len = opcode.length;
+                }
+                is_jmp = true;
+            }
+
+            // 0xDC - CALL C, a16 - Call 16-bit immediate value if carry flag is set
+            // Cycles if taken: 24
+            // Cycles if not taken: 12
+            0xDC => {
+                let addr = self.imm16();
+                if self.reg.cf() {
+                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.reg.write16(Reg16::PC, addr);
+                    jmp_cycles = 24;
+                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                } else {
+                    jmp_cycles = 12;
                     jmp_len = opcode.length;
                 }
                 is_jmp = true;
