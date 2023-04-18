@@ -1,8 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
-
 use self::memory::Memory;
 use super::cpu::interrupts::InterruptFlags;
 use log::{info, warn};
+use std::io;
+use std::io::prelude::*;
+use std::{cell::RefCell, rc::Rc};
 pub mod memory;
 
 /// MMU is the Memory Management Unit. While the GameBoy did not have an actual
@@ -99,7 +100,11 @@ impl Memory for Mmu {
                         // Interrupt Flags
                         self.if_.borrow().get_raw()
                     }
-
+                    0xFF01 => {
+                        // Serial Data Transfer (SB)
+                        info!("Serial Data Transfer (SB) read.");
+                        self.io[addr as usize - 0xFF00]
+                    }
                     // Stub LY, for testing.
                     0xFF44 => 0x90,
 
@@ -143,6 +148,8 @@ impl Memory for Mmu {
                     0xFF01 => {
                         // SB
                         print!("{}", val as char);
+                        // flush stdout
+                        io::stdout().flush().unwrap();
                         self.io[addr as usize - 0xFF00] = val;
                     }
                     _ => self.io[addr as usize - 0xFF00] = val,
@@ -154,6 +161,9 @@ impl Memory for Mmu {
                 warn!("Attempt to write prohibited area of memory, {:#02x}.", addr);
             }
         }
+
+        let real_val = self.read8(addr);
+        info!("Mem [{:#02x}] = {:#02x}", addr, real_val);
     }
 
     /// Read a word (u16) from memory

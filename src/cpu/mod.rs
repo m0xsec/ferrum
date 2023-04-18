@@ -188,7 +188,7 @@ impl Cpu {
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
     pub fn cycle(&mut self) {
-        self.testing_print_state();
+        //self.testing_print_state();
 
         // Handle interrupts
         self.cycles += self.handle_interrupts();

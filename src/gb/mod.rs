@@ -54,7 +54,7 @@ impl GameBoy {
         if testing {
             warn!("Testing mode detected, skipping Boot ROM.");
             self.cpu.test_set_boot_regs();
-            self.read_test_rom("roms/test/blargg/cpu_instrs/individual/01-special.gb");
+            self.read_test_rom("roms/test/blargg/cpu_instrs/individual/06-ld r,r.gb");
             return;
         }
 

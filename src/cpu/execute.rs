@@ -946,10 +946,10 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xC4 => {
-                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
+                let pc = self.reg.read16(Reg16::PC);
                 if !self.reg.zf() {
-                    self.stack_push(pc + opcode.length as u16);
+                    self.stack_push(pc);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
                 } else {
@@ -962,10 +962,10 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xCC => {
-                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
+                let pc = self.reg.read16(Reg16::PC);
                 if self.reg.zf() {
-                    self.stack_push(pc + opcode.length as u16);
+                    self.stack_push(pc);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
                 } else {
@@ -976,9 +976,9 @@ impl Cpu {
 
             // 0xCD - CALL a16 - Call 16-bit immediate value
             0xCD => {
-                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
-                self.stack_push(pc + opcode.length as u16);
+                let pc = self.reg.read16(Reg16::PC);
+                self.stack_push(pc);
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
                 is_jmp = true;
@@ -988,10 +988,10 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xD4 => {
-                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
+                let pc = self.reg.read16(Reg16::PC);
                 if !self.reg.cf() {
-                    self.stack_push(pc + opcode.length as u16);
+                    self.stack_push(pc);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
                 } else {
@@ -1004,10 +1004,10 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xDC => {
-                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
+                let pc = self.reg.read16(Reg16::PC);
                 if self.reg.cf() {
-                    self.stack_push(pc + opcode.length as u16);
+                    self.stack_push(pc);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
                 } else {
