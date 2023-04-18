@@ -1350,6 +1350,66 @@ impl Cpu {
                 self.mem.borrow_mut().write8(hl, result);
             }
 
+            // SWAP r8
+            // 0x30 - SWAP B
+            // 0x31 - SWAP C
+            // 0x32 - SWAP D
+            // 0x33 - SWAP E
+            // 0x34 - SWAP H
+            // 0x35 - SWAP L
+            // 0x37 - SWAP A
+            0x30 | 0x31 | 0x32 | 0x33 | 0x34 | 0x35 | 0x37 => {
+                let (reg, result) = match op {
+                    0x30 => (Reg8::B, self.alu_swap(self.reg.read8(Reg8::B))),
+                    0x31 => (Reg8::C, self.alu_swap(self.reg.read8(Reg8::C))),
+                    0x32 => (Reg8::D, self.alu_swap(self.reg.read8(Reg8::D))),
+                    0x33 => (Reg8::E, self.alu_swap(self.reg.read8(Reg8::E))),
+                    0x34 => (Reg8::H, self.alu_swap(self.reg.read8(Reg8::H))),
+                    0x35 => (Reg8::L, self.alu_swap(self.reg.read8(Reg8::L))),
+                    0x37 => (Reg8::A, self.alu_swap(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x36 - SWAP (HL)
+            0x36 => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_swap(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
+            // SRL r8
+            // 0x38 - SRL B
+            // 0x39 - SRL C
+            // 0x3A - SRL D
+            // 0x3B - SRL E
+            // 0x3C - SRL H
+            // 0x3D - SRL L
+            // 0x3F - SRL A
+            0x38 | 0x39 | 0x3A | 0x3B | 0x3C | 0x3D | 0x3F => {
+                let (reg, result) = match op {
+                    0x38 => (Reg8::B, self.alu_srl(self.reg.read8(Reg8::B))),
+                    0x39 => (Reg8::C, self.alu_srl(self.reg.read8(Reg8::C))),
+                    0x3A => (Reg8::D, self.alu_srl(self.reg.read8(Reg8::D))),
+                    0x3B => (Reg8::E, self.alu_srl(self.reg.read8(Reg8::E))),
+                    0x3C => (Reg8::H, self.alu_srl(self.reg.read8(Reg8::H))),
+                    0x3D => (Reg8::L, self.alu_srl(self.reg.read8(Reg8::L))),
+                    0x3F => (Reg8::A, self.alu_srl(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x3E - SRL (HL)
+            0x3E => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_srl(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
@@ -1809,5 +1869,26 @@ impl Cpu {
         let result = (val >> 1) | (val & 0x80);
         self.alu_sr_flags(result, carry);
         result
+    }
+
+    /// ALU Shift Right operation.
+    /// Shift an 8-bit value right, into carry, return result. MSB is set to 0.
+    /// Flags: Z 0 0 C
+    fn alu_srl(&mut self, val: u8) -> u8 {
+        let carry = (val & 0x01) != 0;
+        let result = val >> 1;
+        self.alu_sr_flags(result, carry);
+        result
+    }
+
+    /// ALU Swap operation.
+    /// Swap upper and lower nibbles of an 8-bit value, return result.
+    /// Flags: Z 0 0 0
+    fn alu_swap(&mut self, val: u8) -> u8 {
+        self.reg.set_zf(val == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(false);
+        (val >> 4) | (val << 4)
     }
 }
