@@ -1107,7 +1107,8 @@ impl Cpu {
 
             // 0x07 - RLCA - Rotate A left. Old bit 7 to Carry flag.
             0x07 => {
-                let result = self.alu_rlc(Reg8::A);
+                let val = self.reg.read8(Reg8::A);
+                let result = self.alu_rlc(val);
                 self.reg.write8(Reg8::A, result);
                 // Flag Z is reset here.
                 self.reg.set_zf(false);
@@ -1115,7 +1116,8 @@ impl Cpu {
 
             // 0x0F - RRCA - Rotate A right. Old bit 0 to Carry flag.
             0x0F => {
-                let result = self.alu_rrc(Reg8::A);
+                let val = self.reg.read8(Reg8::A);
+                let result = self.alu_rrc(val);
                 self.reg.write8(Reg8::A, result);
                 // Flag Z is reset here.
                 self.reg.set_zf(false);
@@ -1123,7 +1125,8 @@ impl Cpu {
 
             // 0x17 - RLA - Rotate A left through Carry flag.
             0x17 => {
-                let result = self.alu_rl(Reg8::A);
+                let val = self.reg.read8(Reg8::A);
+                let result = self.alu_rl(val);
                 self.reg.write8(Reg8::A, result);
                 // Flag Z is reset here.
                 self.reg.set_zf(false);
@@ -1131,7 +1134,8 @@ impl Cpu {
 
             // 0x1F - RRA - Rotate A right through Carry flag.
             0x1F => {
-                let result = self.alu_rr(Reg8::A);
+                let val = self.reg.read8(Reg8::A);
+                let result = self.alu_rr(val);
                 self.reg.write8(Reg8::A, result);
                 // Flag Z is reset here.
                 self.reg.set_zf(false);
@@ -1166,9 +1170,36 @@ impl Cpu {
         info!("CB {:#02x} {}", cb_opcode.op, &cb_opcode.mnemonic);
 
         match op {
-            0x00 => {
-                warn!("CB 0x00: RLC B not yet implemented.");
+            // RLC r8
+            // 0x00 - RLC B
+            // 0x01 - RLC C
+            // 0x02 - RLC D
+            // 0x03 - RLC E
+            // 0x04 - RLC H
+            // 0x05 - RLC L
+            // 0x07 - RLC A
+            0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05 | 0x07 => {
+                let (reg, result) = match op {
+                    0x00 => (Reg8::B, self.alu_rlc(self.reg.read8(Reg8::B))),
+                    0x01 => (Reg8::C, self.alu_rlc(self.reg.read8(Reg8::C))),
+                    0x02 => (Reg8::D, self.alu_rlc(self.reg.read8(Reg8::D))),
+                    0x03 => (Reg8::E, self.alu_rlc(self.reg.read8(Reg8::E))),
+                    0x04 => (Reg8::H, self.alu_rlc(self.reg.read8(Reg8::H))),
+                    0x05 => (Reg8::L, self.alu_rlc(self.reg.read8(Reg8::L))),
+                    0x07 => (Reg8::A, self.alu_rlc(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
             }
+
+            // 0x06 - RLC (HL)
+            0x06 => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_rlc(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
@@ -1575,9 +1606,8 @@ impl Cpu {
     }
 
     /// ALU Rotate Left carry operation.
-    /// Rotate an 8-bit register left through carry flag, return result.
-    fn alu_rlc(&mut self, reg: Reg8) -> u8 {
-        let val = self.reg.read8(reg);
+    /// Rotate an 8-bit value left through carry flag, return result.
+    fn alu_rlc(&mut self, val: u8) -> u8 {
         let carry = (val & 0x80) != 0;
         let result = (val << 1) | (if carry { 1 } else { 0 });
         self.alu_sr_flags(val, carry);
@@ -1585,9 +1615,8 @@ impl Cpu {
     }
 
     /// ALU Rotate Left operation.
-    /// Rotate an 8-bit register left, return result.
-    fn alu_rl(&mut self, reg: Reg8) -> u8 {
-        let val = self.reg.read8(reg);
+    /// Rotate an 8-bit value left, return result.
+    fn alu_rl(&mut self, val: u8) -> u8 {
         let carry = (val & 0x80) != 0;
         let result = (val << 1) | (if self.reg.cf() { 1 } else { 0 });
         self.alu_sr_flags(val, carry);
@@ -1595,9 +1624,8 @@ impl Cpu {
     }
 
     /// ALU Rotate Right carry operation.
-    /// Rotate an 8-bit register right through carry flag, return result.
-    fn alu_rrc(&mut self, reg: Reg8) -> u8 {
-        let val = self.reg.read8(reg);
+    /// Rotate an 8-bit value right through carry flag, return result.
+    fn alu_rrc(&mut self, val: u8) -> u8 {
         let carry = (val & 0x01) != 0;
         let result = (val >> 1) | (if carry { 0x80 } else { 0 });
         self.alu_sr_flags(val, carry);
@@ -1605,9 +1633,8 @@ impl Cpu {
     }
 
     /// ALU Rotate Right operation.
-    /// Rotate an 8-bit register right, return result.
-    fn alu_rr(&mut self, reg: Reg8) -> u8 {
-        let val = self.reg.read8(reg);
+    /// Rotate an 8-bit value right, return result.
+    fn alu_rr(&mut self, val: u8) -> u8 {
         let carry = (val & 0x01) != 0;
         let result = (val >> 1) | (if self.reg.cf() { 0x80 } else { 0 });
         self.alu_sr_flags(val, carry);
