@@ -1102,6 +1102,14 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            0xCB => {
+                todo!("CB prefix not implemented yet.");
+                /*let op = self.imm8();
+                let opcode = &OPCODES_CB[op as usize];
+                let cycles = self.execute_opcode(opcode);
+                cycles*/
+            }
+
             _ => {
                 todo!("opcode: {:#02x}.", op);
             }
