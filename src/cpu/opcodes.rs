@@ -28,7 +28,6 @@ impl OpCode {
 }
 
 lazy_static! {
-    //TODO: Add all Z80 / SM83 / LR35902 CPU instructions for the Game Boy...
     pub static ref CPU_OP_CODES: Vec<OpCode> = vec![
         OpCode::new(0x00, "NOP", 1, 4),
         OpCode::new(0x01, "LD", 3, 12),
@@ -286,14 +285,20 @@ lazy_static! {
         OpCode::new(0xFD, "ILLEGAL_FD", 1, 4),
         OpCode::new(0xFE, "CP", 2, 8),
         OpCode::new(0xFF, "RST", 1, 16),
-
-        // TODO: Add an additional ref for all of the PREFIX CB CPU ops...
-
     ];
+    // TODO: Add CB opcodes
+    pub static ref CB_OP_CODES: Vec<OpCode> = vec![];
     pub static ref OPCODES_MAP: HashMap<u8, &'static OpCode> = {
         let mut map = HashMap::new();
         for cpu_op in &*CPU_OP_CODES {
             map.insert(cpu_op.op, cpu_op);
+        }
+        map
+    };
+    pub static ref CB_OPCODES_MAP: HashMap<u8, &'static OpCode> = {
+        let mut map = HashMap::new();
+        for cb_op in &*CB_OP_CODES {
+            map.insert(cb_op.op, cb_op);
         }
         map
     };
