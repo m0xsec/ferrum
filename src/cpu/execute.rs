@@ -3,7 +3,7 @@ use super::{
     registers::{Reg16, Reg8},
     Cpu,
 };
-use log::info;
+use log::{info, warn};
 use std::collections::HashMap;
 
 impl Cpu {
@@ -1141,6 +1141,7 @@ impl Cpu {
             0xCB => {
                 let cb_op = self.imm8();
                 cb_cycles = self.cb_op_execute(cb_op);
+                is_cb = true;
             }
 
             _ => {
@@ -1165,10 +1166,14 @@ impl Cpu {
         info!("CB {:#02x} {}", cb_opcode.op, &cb_opcode.mnemonic);
 
         match op {
+            0x00 => {
+                warn!("CB 0x00: RLC B not yet implemented.");
+            }
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
         }
+        cb_opcode.cycles
     }
 }
 
