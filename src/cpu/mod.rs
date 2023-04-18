@@ -37,74 +37,9 @@ impl Cpu {
             .borrow()
             .read8(self.reg.read16(registers::Reg16::PC))
     }
-}
-
-impl Cpu {
-    /// Initialize the CPU
-    pub fn power_on(mem: Rc<RefCell<dyn Memory>>) -> Self {
-        Self {
-            /*
-                Set initial registers to 0x00 - The DMG-01 power up sequence, per PanDocs, is:
-                https://gbdev.io/pandocs/Power_Up_Sequence.html
-                A = 0x01
-                F = 0xB0
-                B = 0x00
-                C = 0x13
-                D = 0x00
-                E = 0xD8
-                H = 0x01
-                L = 0x4D
-                PC = 0x0100
-                SP = 0xFFFE
-
-                This should be what the boot ROM does.
-            */
-            reg: registers::Registers::new(),
-            mem,
-            ime: true,
-
-            // 4.194304 MHz was the highest freq the DMG could run at.
-            cycles: 0,
-            max_cycles: 4194304,
-
-            halt: false,
-        }
-    }
-
-    /// When we are skipping the Boot ROM for testing, set the registers to what the boot ROM would set them to normally.
-    pub fn test_set_boot_regs(&mut self) {
-        info!("Setting registers to boot ROM values (for testing)...");
-        self.reg.write8(registers::Reg8::A, 0x01);
-        self.reg.write8(registers::Reg8::F, 0xB0);
-        self.reg.write8(registers::Reg8::B, 0x00);
-        self.reg.write8(registers::Reg8::C, 0x13);
-        self.reg.write8(registers::Reg8::D, 0x00);
-        self.reg.write8(registers::Reg8::E, 0xD8);
-        self.reg.write8(registers::Reg8::H, 0x01);
-        self.reg.write8(registers::Reg8::L, 0x4D);
-        self.reg.write16(registers::Reg16::PC, 0x0100);
-        self.reg.write16(registers::Reg16::SP, 0xFFFE);
-    }
-
-    /// Blargg test ROMs will output results to the serial port as an alternative to the PPU.
-    pub fn test_read_blargg_serial(&self) {
-        /*
-        Everything printed on screen is also sent to the game link port by
-        writing the character to SB, then writing $81 to SC. This is useful for
-        tests which print lots of information that scrolls off screen.
-        */
-
-        // Character is written to SB, then $81 is written to SC.
-        let sb = self.mem.borrow().read8(0xFF01);
-        let sc = self.mem.borrow().read8(0xFF02);
-        if sc == 0x81 {
-            print!("{}", sb as char);
-            self.mem.borrow_mut().write8(0xFF02, 0x00);
-        }
-    }
 
     /// Handles CPU Interrupts and returns the number of cycles the interrupt took.
-    pub fn handle_interrupts(&mut self) -> u32 {
+    fn handle_interrupts(&mut self) -> u32 {
         // Interrupts are handled by the CPU, not the MMU.
         // The IME (interrupt master enable) flag is reset by DI and prohibits all interrupts. It is set by EI and
         // acknowledges the interrupt setting by the IE register.
@@ -173,6 +108,54 @@ impl Cpu {
         self.reg.write16(registers::Reg16::PC, i_addr);
 
         4
+    }
+}
+
+impl Cpu {
+    /// Initialize the CPU
+    pub fn power_on(mem: Rc<RefCell<dyn Memory>>) -> Self {
+        Self {
+            /*
+                Set initial registers to 0x00 - The DMG-01 power up sequence, per PanDocs, is:
+                https://gbdev.io/pandocs/Power_Up_Sequence.html
+                A = 0x01
+                F = 0xB0
+                B = 0x00
+                C = 0x13
+                D = 0x00
+                E = 0xD8
+                H = 0x01
+                L = 0x4D
+                PC = 0x0100
+                SP = 0xFFFE
+
+                This should be what the boot ROM does.
+            */
+            reg: registers::Registers::new(),
+            mem,
+            ime: true,
+
+            // 4.194304 MHz was the highest freq the DMG could run at.
+            cycles: 0,
+            max_cycles: 4194304,
+
+            halt: false,
+        }
+    }
+
+    /// When we are skipping the Boot ROM for testing, set the registers to what the boot ROM would set them to normally.
+    pub fn test_set_boot_regs(&mut self) {
+        info!("Setting registers to boot ROM values (for testing)...");
+        self.reg.write8(registers::Reg8::A, 0x01);
+        self.reg.write8(registers::Reg8::F, 0xB0);
+        self.reg.write8(registers::Reg8::B, 0x00);
+        self.reg.write8(registers::Reg8::C, 0x13);
+        self.reg.write8(registers::Reg8::D, 0x00);
+        self.reg.write8(registers::Reg8::E, 0xD8);
+        self.reg.write8(registers::Reg8::H, 0x01);
+        self.reg.write8(registers::Reg8::L, 0x4D);
+        self.reg.write16(registers::Reg16::PC, 0x0100);
+        self.reg.write16(registers::Reg16::SP, 0xFFFE);
     }
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute

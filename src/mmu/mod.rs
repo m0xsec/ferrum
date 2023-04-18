@@ -99,6 +99,7 @@ impl Memory for Mmu {
                         // Interrupt Flags
                         self.if_.borrow().get_raw()
                     }
+
                     _ => self.io[addr as usize - 0xFF00],
                 }
             }
@@ -106,7 +107,10 @@ impl Memory for Mmu {
             0xFFFF => self.ie,
             _ => {
                 warn!("Attempt to read prohibited area of memory, {:#02x}.", addr);
-                0xFF
+                // 0xFEA0 - 0xFEFF is prohibited.
+                // DMG will return 0x00.
+                // https://gbdev.io/pandocs/Memory_Map.html
+                0x00
             }
         }
     }
@@ -131,6 +135,12 @@ impl Memory for Mmu {
                     0xFF0F => {
                         // Interrupt Flags
                         self.if_.borrow_mut().set_raw(val);
+                    }
+                    // Intercept Serial writes, and output to stdout.
+                    0xFF01 => {
+                        // SB
+                        print!("{}", val as char);
+                        self.io[addr as usize - 0xFF00] = val;
                     }
                     _ => self.io[addr as usize - 0xFF00] = val,
                 }

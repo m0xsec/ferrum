@@ -24,6 +24,26 @@ impl Cpu {
             // 0x00 - NOP - No operation
             0x00 => {}
 
+            // 0x10 - STOP
+            0x10 => {}
+
+            // 0x76 - HALT
+            0x76 => {
+                self.halt = true;
+            }
+
+            // 0xF3 - DI - Disable interrupts
+            // NOTE: The IME should be changed not immediately, but after this instruction executes.
+            0xF3 => {
+                self.ime = false;
+            }
+
+            // 0xFB - EI - Enable interrupts
+            // NOTE: The IME should be changed not immediately, but after this instruction executes.
+            0xFB => {
+                self.ime = true;
+            }
+
             // LD r8, d8
             // 0x06 - LD B, d8 - Load immediate 8-bit value into register B
             // 0x0E - LD C, d8 - Load immediate 8-bit value into register C
@@ -344,13 +364,13 @@ impl Cpu {
 
             // 0xE0 - LDH (a8), A - Load register A into memory at address 0xFF00 + a8
             0xE0 => {
-                let addr = 0xFF00 + self.imm8() as u16;
+                let addr = 0xFF00 | (self.imm8() as u16);
                 self.ld8(addr, self.reg.read8(Reg8::A));
             }
 
             // 0xF0 - LDH A, (a8) - Load memory at address 0xFF00 + a8 into register A
             0xF0 => {
-                let addr = 0xFF00 + self.imm8() as u16;
+                let addr = 0xFF00 | (self.imm8() as u16);
                 let val = self.mem.borrow().read8(addr);
                 self.ldr8(Reg8::A, val);
             }
@@ -859,8 +879,9 @@ impl Cpu {
             // 0x18 - JR r8 - Add 8-bit signed immediate value to PC
             0x18 => {
                 let val = self.imm8() as i8;
-                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
-                self.reg.write16(Reg16::PC, addr as u16);
+                let addr =
+                    ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
+                self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
                 jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 is_jmp = true;
@@ -871,9 +892,10 @@ impl Cpu {
             // Cycles if not taken: 8
             0x20 => {
                 let val = self.imm8() as i8;
-                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                let addr =
+                    ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
                 if !self.reg.zf() {
-                    self.reg.write16(Reg16::PC, addr as u16);
+                    self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
                     jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
@@ -888,9 +910,10 @@ impl Cpu {
             // Cycles if not taken: 8
             0x28 => {
                 let val = self.imm8() as i8;
-                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                let addr =
+                    ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
                 if self.reg.zf() {
-                    self.reg.write16(Reg16::PC, addr as u16);
+                    self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
                     jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
@@ -905,9 +928,10 @@ impl Cpu {
             // Cycles if not taken: 8
             0x30 => {
                 let val = self.imm8() as i8;
-                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                let addr =
+                    ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
                 if !self.reg.cf() {
-                    self.reg.write16(Reg16::PC, addr as u16);
+                    self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
                     jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
@@ -922,9 +946,10 @@ impl Cpu {
             // Cycles if not taken: 8
             0x38 => {
                 let val = self.imm8() as i8;
-                let addr = self.reg.read16(Reg16::PC) as i32 + val as i32;
+                let addr =
+                    ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
                 if self.reg.cf() {
-                    self.reg.write16(Reg16::PC, addr as u16);
+                    self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
                     jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {

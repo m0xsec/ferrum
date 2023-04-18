@@ -53,8 +53,8 @@ impl GameBoy {
         // TODO: Once all the opcodes are implemented, we can remove this and actually have the boot ROM run.
         if testing {
             warn!("Testing mode detected, skipping Boot ROM.");
-            self.read_test_rom("roms/test/blargg/cpu_instrs/individual/03-op sp,hl.gb");
             self.cpu.test_set_boot_regs();
+            self.read_test_rom("roms/test/blargg/cpu_instrs/individual/01-special.gb");
             return;
         }
 
@@ -64,12 +64,9 @@ impl GameBoy {
     }
 
     /// Run Gameboy emulation
-    pub fn run(&mut self, testing: bool) {
+    pub fn run(&mut self) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
         loop {
-            if testing {
-                self.cpu.test_read_blargg_serial();
-            }
             self.cpu.dump_registers();
             self.cpu.cycle();
         }

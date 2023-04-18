@@ -30,5 +30,5 @@ fn main() {
     let mut ferrum = gb::GameBoy::power_on();
     ferrum.boot_rom(TESTING);
     warn!("Remaining Gameboy boot process is not yet implemented.");
-    ferrum.run(TESTING);
+    ferrum.run();
 }
