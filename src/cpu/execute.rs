@@ -1200,6 +1200,36 @@ impl Cpu {
                 self.mem.borrow_mut().write8(hl, result);
             }
 
+            // RRC r8
+            // 0x08 - RRC B
+            // 0x09 - RRC C
+            // 0x0A - RRC D
+            // 0x0B - RRC E
+            // 0x0C - RRC H
+            // 0x0D - RRC L
+            // 0x0F - RRC A
+            0x08 | 0x09 | 0x0A | 0x0B | 0x0C | 0x0D | 0x0F => {
+                let (reg, result) = match op {
+                    0x08 => (Reg8::B, self.alu_rrc(self.reg.read8(Reg8::B))),
+                    0x09 => (Reg8::C, self.alu_rrc(self.reg.read8(Reg8::C))),
+                    0x0A => (Reg8::D, self.alu_rrc(self.reg.read8(Reg8::D))),
+                    0x0B => (Reg8::E, self.alu_rrc(self.reg.read8(Reg8::E))),
+                    0x0C => (Reg8::H, self.alu_rrc(self.reg.read8(Reg8::H))),
+                    0x0D => (Reg8::L, self.alu_rrc(self.reg.read8(Reg8::L))),
+                    0x0F => (Reg8::A, self.alu_rrc(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x0E - RRC (HL)
+            0x0E => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_rrc(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
