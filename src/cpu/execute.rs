@@ -3,7 +3,7 @@ use super::{
     registers::{Reg16, Reg8},
     Cpu,
 };
-use log::{info, warn};
+use log::info;
 use std::collections::HashMap;
 
 impl Cpu {
@@ -1290,6 +1290,66 @@ impl Cpu {
                 self.mem.borrow_mut().write8(hl, result);
             }
 
+            // SLA r8
+            // 0x20 - SLA B
+            // 0x21 - SLA C
+            // 0x22 - SLA D
+            // 0x23 - SLA E
+            // 0x24 - SLA H
+            // 0x25 - SLA L
+            // 0x27 - SLA A
+            0x20 | 0x21 | 0x22 | 0x23 | 0x24 | 0x25 | 0x27 => {
+                let (reg, result) = match op {
+                    0x20 => (Reg8::B, self.alu_sla(self.reg.read8(Reg8::B))),
+                    0x21 => (Reg8::C, self.alu_sla(self.reg.read8(Reg8::C))),
+                    0x22 => (Reg8::D, self.alu_sla(self.reg.read8(Reg8::D))),
+                    0x23 => (Reg8::E, self.alu_sla(self.reg.read8(Reg8::E))),
+                    0x24 => (Reg8::H, self.alu_sla(self.reg.read8(Reg8::H))),
+                    0x25 => (Reg8::L, self.alu_sla(self.reg.read8(Reg8::L))),
+                    0x27 => (Reg8::A, self.alu_sla(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x26 - SLA (HL)
+            0x26 => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_sla(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
+            // SRA r8
+            // 0x28 - SRA B
+            // 0x29 - SRA C
+            // 0x2A - SRA D
+            // 0x2B - SRA E
+            // 0x2C - SRA H
+            // 0x2D - SRA L
+            // 0x2F - SRA A
+            0x28 | 0x29 | 0x2A | 0x2B | 0x2C | 0x2D | 0x2F => {
+                let (reg, result) = match op {
+                    0x28 => (Reg8::B, self.alu_sra(self.reg.read8(Reg8::B))),
+                    0x29 => (Reg8::C, self.alu_sra(self.reg.read8(Reg8::C))),
+                    0x2A => (Reg8::D, self.alu_sra(self.reg.read8(Reg8::D))),
+                    0x2B => (Reg8::E, self.alu_sra(self.reg.read8(Reg8::E))),
+                    0x2C => (Reg8::H, self.alu_sra(self.reg.read8(Reg8::H))),
+                    0x2D => (Reg8::L, self.alu_sra(self.reg.read8(Reg8::L))),
+                    0x2F => (Reg8::A, self.alu_sra(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x2E - SRA (HL)
+            0x2E => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_sra(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
@@ -1728,6 +1788,26 @@ impl Cpu {
         let carry = (val & 0x01) != 0;
         let result = (val >> 1) | (if self.reg.cf() { 0x80 } else { 0 });
         self.alu_sr_flags(val, carry);
+        result
+    }
+
+    /// ALU Shift Left operation.
+    /// Shift an 8-bit value left, into carry, return result. LSB is set to 0.
+    /// Flags: Z 0 0 C
+    fn alu_sla(&mut self, val: u8) -> u8 {
+        let carry = (val & 0x80) != 0;
+        let result = val << 1;
+        self.alu_sr_flags(result, carry);
+        result
+    }
+
+    /// ALU Shift Right operation.
+    /// Shift an 8-bit value right, into carry, return result. MSB is unchanged.
+    /// Flags: Z 0 0 C
+    fn alu_sra(&mut self, val: u8) -> u8 {
+        let carry = (val & 0x01) != 0;
+        let result = (val >> 1) | (val & 0x80);
+        self.alu_sr_flags(result, carry);
         result
     }
 }
