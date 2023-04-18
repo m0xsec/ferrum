@@ -287,7 +287,11 @@ lazy_static! {
         OpCode::new(0xFF, "RST", 1, 16),
     ];
     // TODO: Add CB opcodes
-    pub static ref CB_OP_CODES: Vec<OpCode> = vec![];
+    pub static ref CB_OP_CODES: Vec<OpCode> = vec![
+        OpCode::new(0x00, "RLC", 1, 8),
+        OpCode::new(0x01, "RLC", 1, 8),
+        OpCode::new(0x02, "RLC", 1, 8),
+    ];
     pub static ref OPCODES_MAP: HashMap<u8, &'static OpCode> = {
         let mut map = HashMap::new();
         for cpu_op in &*CPU_OP_CODES {

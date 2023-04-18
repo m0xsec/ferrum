@@ -13,9 +13,12 @@ impl Cpu {
         let opcode = opcodes.get(&op).unwrap();
 
         // Jump instructions often have a different number of cycles depending on whether an action is taken or not.
-        // Jump instructions also directly change the PC, so jmp_len will allow us to skip the normal PC increment.
         let mut is_jmp = false;
         let mut jmp_cycles: u32 = 0;
+
+        // Keep track of CB prefix operations cycles
+        let mut is_cb = false;
+        let mut cb_cycles: u32 = 0;
 
         info!("{:#02x} {}", opcode.op, &opcode.mnemonic);
 
@@ -1136,11 +1139,8 @@ impl Cpu {
 
             // 0xCB - CB prefix
             0xCB => {
-                todo!("CB prefix not implemented yet.");
-                /*let op = self.imm8();
-                let opcode = &OPCODES_CB[op as usize];
-                let cycles = self.execute_opcode(opcode);
-                cycles*/
+                let cb_op = self.imm8();
+                cb_cycles = self.cb_op_execute(cb_op);
             }
 
             _ => {
@@ -1151,7 +1151,31 @@ impl Cpu {
         if is_jmp {
             return jmp_cycles;
         }
+        if is_cb {
+            return cb_cycles;
+        }
         opcode.cycles
+    }
+
+    /// Executes a CB-prefix operation, returns the number of cycles
+    fn cb_op_execute(&mut self, op: u8) -> u32 {
+        let cb_opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::CB_OPCODES_MAP;
+        //let cb_opcode = cb_opcodes.get(&op).unwrap();
+        // TODO: Once all CB opcodes are in the CB opcode map, remove the unwrap_or.
+        let cb_opcode = cb_opcodes.get(&op).unwrap_or(&&opcodes::OpCode {
+            op: 0,
+            length: 0,
+            cycles: 0,
+            mnemonic: "NOP",
+        });
+
+        info!("CB {:#02x} {}", cb_opcode.op, &cb_opcode.mnemonic);
+
+        match op {
+            _ => {
+                todo!("CB opcode: {:#02x}.", op);
+            }
+        }
     }
 }
 
