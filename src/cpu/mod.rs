@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{info, warn};
 
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
@@ -32,10 +32,11 @@ pub struct Cpu {
 
 impl Cpu {
     /// Fetches the next opcode from memory
-    fn fetch(&self) -> u8 {
-        self.mem
-            .borrow()
-            .read8(self.reg.read16(registers::Reg16::PC))
+    fn fetch(&mut self) -> u8 {
+        /*self.mem
+        .borrow()
+        .read8(self.reg.read16(registers::Reg16::PC))*/
+        self.imm8()
     }
 
     /// Handles CPU Interrupts and returns the number of cycles the interrupt took.
@@ -195,9 +196,7 @@ impl Cpu {
         // If CPU is halted, do nothing.
         if !self.halt {
             let op = self.fetch();
-            let (len, cycle) = self.op_execute(op);
-            self.reg.inc_pc(len.into());
-            self.cycles += cycle;
+            self.cycles += self.op_execute(op);
         } else {
             info!("CPU halted!");
         }

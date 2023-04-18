@@ -158,10 +158,10 @@ impl Memory for Mmu {
 
     /// Read a word (u16) from memory
     fn read16(&self, addr: u16) -> u16 {
-        //u16::from(self.read8(addr)) | (u16::from(self.read8(addr + 1)) << 8)
-        let lo = self.read8(addr);
+        u16::from(self.read8(addr)) | (u16::from(self.read8(addr + 1)) << 8)
+        /*let lo = self.read8(addr);
         let hi = self.read8(addr + 1);
-        u16::from_le_bytes([lo, hi])
+        u16::from_le_bytes([lo, hi])*/
     }
 
     /// Write a word (u16) to memory

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 impl Cpu {
     /// Executes a CPU operation, returns the number of cycles
-    pub(super) fn op_execute(&mut self, op: u8) -> (u8, u32) {
+    pub(super) fn op_execute(&mut self, op: u8) -> u32 {
         let opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
         let opcode = opcodes.get(&op).unwrap();
 
@@ -16,7 +16,6 @@ impl Cpu {
         // Jump instructions also directly change the PC, so jmp_len will allow us to skip the normal PC increment.
         let mut is_jmp = false;
         let mut jmp_cycles: u32 = 0;
-        let mut jmp_len: u8 = 0;
 
         info!("{:#02x} {}", opcode.op, &opcode.mnemonic);
 
@@ -802,11 +801,8 @@ impl Cpu {
                 if !self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -816,8 +812,6 @@ impl Cpu {
                 let addr = self.imm16();
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 is_jmp = true;
             }
 
@@ -829,11 +823,8 @@ impl Cpu {
                 if self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -846,11 +837,8 @@ impl Cpu {
                 if !self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -863,11 +851,8 @@ impl Cpu {
                 if self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -877,7 +862,6 @@ impl Cpu {
                 let addr = self.reg.read16(Reg16::HL);
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 is_jmp = true;
             }
 
@@ -888,8 +872,6 @@ impl Cpu {
                     ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 is_jmp = true;
             }
 
@@ -903,11 +885,8 @@ impl Cpu {
                 if !self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -922,11 +901,8 @@ impl Cpu {
                 if self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -941,11 +917,8 @@ impl Cpu {
                 if !self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -960,11 +933,8 @@ impl Cpu {
                 if self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -973,16 +943,14 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xC4 => {
+                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
                 if !self.reg.zf() {
-                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.stack_push(pc + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -991,28 +959,25 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xCC => {
+                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
                 if self.reg.zf() {
-                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.stack_push(pc + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
 
             // 0xCD - CALL a16 - Call 16-bit immediate value
             0xCD => {
+                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
-                self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                self.stack_push(pc + opcode.length as u16);
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 is_jmp = true;
             }
 
@@ -1020,16 +985,14 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xD4 => {
+                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
                 if !self.reg.cf() {
-                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.stack_push(pc + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -1038,16 +1001,14 @@ impl Cpu {
             // Cycles if taken: 24
             // Cycles if not taken: 12
             0xDC => {
+                let pc = self.reg.read16(Reg16::PC);
                 let addr = self.imm16();
                 if self.reg.cf() {
-                    self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                    self.stack_push(pc + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
-                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -1060,10 +1021,8 @@ impl Cpu {
                     let addr = self.stack_pop();
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 20;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -1076,10 +1035,8 @@ impl Cpu {
                     let addr = self.stack_pop();
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 20;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -1089,7 +1046,6 @@ impl Cpu {
                 let addr = self.stack_pop();
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 is_jmp = true;
             }
 
@@ -1101,10 +1057,8 @@ impl Cpu {
                     let addr = self.stack_pop();
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 20;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -1117,10 +1071,8 @@ impl Cpu {
                     let addr = self.stack_pop();
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 20;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 } else {
                     jmp_cycles = 8;
-                    jmp_len = opcode.length;
                 }
                 is_jmp = true;
             }
@@ -1131,7 +1083,6 @@ impl Cpu {
                 self.reg.write16(Reg16::PC, addr);
                 self.ime = true;
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 is_jmp = true;
             }
 
@@ -1148,7 +1099,6 @@ impl Cpu {
                 self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
                 is_jmp = true;
             }
 
@@ -1158,23 +1108,25 @@ impl Cpu {
         }
 
         if is_jmp {
-            return (jmp_len, jmp_cycles);
+            return jmp_cycles;
         }
-        (opcode.length, opcode.cycles)
+        opcode.cycles
     }
 }
 
 impl Cpu {
     /// Fetch the immediate byte (u8).
-    /// NOTE: incrementing the PC is not handled.
-    fn imm8(&mut self) -> u8 {
-        self.mem.borrow().read8(self.reg.read16(Reg16::PC) + 1)
+    pub(super) fn imm8(&mut self) -> u8 {
+        let val = self.mem.borrow().read8(self.reg.read16(Reg16::PC));
+        self.reg.inc_pc(1);
+        val
     }
 
     /// Fetch the immediate word (u16).
-    /// NOTE: incrementing the PC is not handled.
     fn imm16(&mut self) -> u16 {
-        self.mem.borrow().read16(self.reg.read16(Reg16::PC) + 1)
+        let val = self.mem.borrow().read16(self.reg.read16(Reg16::PC));
+        self.reg.inc_pc(2);
+        val
     }
 
     /// 8-bit load operation.
@@ -1204,9 +1156,11 @@ impl Cpu {
     /// Stack push operation.
     /// Push a 16-bit value (val) onto the stack.
     pub(super) fn stack_push(&mut self, val: u16) {
+        self.reg.dec_sp(2);
         let sp = self.reg.read16(Reg16::SP);
-        self.ld16(sp - 2, val);
-        self.reg.write16(Reg16::SP, sp - 2);
+        self.mem.borrow_mut().write16(sp, val);
+        //self.ld16(sp - 2, val);
+        //self.reg.dec_sp(2);
     }
 
     /// Stack pop operation.
@@ -1214,7 +1168,7 @@ impl Cpu {
     fn stack_pop(&mut self) -> u16 {
         let sp = self.reg.read16(Reg16::SP);
         let val = self.mem.borrow().read16(sp);
-        self.reg.write16(Reg16::SP, sp + 2);
+        self.reg.inc_sp(2);
         val
     }
 

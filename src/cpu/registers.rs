@@ -212,6 +212,26 @@ impl Registers {
         }
         self.pc = self.pc.wrapping_add(inc);
     }
+
+    /// Handles safe incrementing for the Stack Pointer (SP) register.
+    pub fn inc_sp(&mut self, inc: u16) {
+        let (_, overflow) = self.sp.overflowing_add(inc);
+        if overflow {
+            //panic!("SP OVERFLOW");
+            warn!("SP Register Overflow, wrapping to prevent panic.")
+        }
+        self.sp = self.sp.wrapping_add(inc);
+    }
+
+    /// Handles safe decrementing for the Stack Pointer (SP) register.
+    pub fn dec_sp(&mut self, dec: u16) {
+        let (_, overflow) = self.sp.overflowing_sub(dec);
+        if overflow {
+            //panic!("SP UNDERFLOW");
+            warn!("SP Register Underflow, wrapping to prevent panic.")
+        }
+        self.sp = self.sp.wrapping_sub(dec);
+    }
 }
 
 impl fmt::Display for Registers {
