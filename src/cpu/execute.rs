@@ -1230,6 +1230,66 @@ impl Cpu {
                 self.mem.borrow_mut().write8(hl, result);
             }
 
+            // RL r8
+            // 0x10 - RL B
+            // 0x11 - RL C
+            // 0x12 - RL D
+            // 0x13 - RL E
+            // 0x14 - RL H
+            // 0x15 - RL L
+            // 0x17 - RL A
+            0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 | 0x17 => {
+                let (reg, result) = match op {
+                    0x10 => (Reg8::B, self.alu_rl(self.reg.read8(Reg8::B))),
+                    0x11 => (Reg8::C, self.alu_rl(self.reg.read8(Reg8::C))),
+                    0x12 => (Reg8::D, self.alu_rl(self.reg.read8(Reg8::D))),
+                    0x13 => (Reg8::E, self.alu_rl(self.reg.read8(Reg8::E))),
+                    0x14 => (Reg8::H, self.alu_rl(self.reg.read8(Reg8::H))),
+                    0x15 => (Reg8::L, self.alu_rl(self.reg.read8(Reg8::L))),
+                    0x17 => (Reg8::A, self.alu_rl(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x16 - RL (HL)
+            0x16 => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_rl(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
+            // RR r8
+            // 0x18 - RR B
+            // 0x19 - RR C
+            // 0x1A - RR D
+            // 0x1B - RR E
+            // 0x1C - RR H
+            // 0x1D - RR L
+            // 0x1F - RR A
+            0x18 | 0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1F => {
+                let (reg, result) = match op {
+                    0x18 => (Reg8::B, self.alu_rr(self.reg.read8(Reg8::B))),
+                    0x19 => (Reg8::C, self.alu_rr(self.reg.read8(Reg8::C))),
+                    0x1A => (Reg8::D, self.alu_rr(self.reg.read8(Reg8::D))),
+                    0x1B => (Reg8::E, self.alu_rr(self.reg.read8(Reg8::E))),
+                    0x1C => (Reg8::H, self.alu_rr(self.reg.read8(Reg8::H))),
+                    0x1D => (Reg8::L, self.alu_rr(self.reg.read8(Reg8::L))),
+                    0x1F => (Reg8::A, self.alu_rr(self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                self.reg.write8(reg, result);
+            }
+
+            // 0x1E - RR (HL)
+            0x1E => {
+                let hl = self.reg.read16(Reg16::HL);
+                let val = self.mem.borrow().read8(hl);
+                let result = self.alu_rr(val);
+                self.mem.borrow_mut().write8(hl, result);
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
