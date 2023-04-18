@@ -1102,6 +1102,39 @@ impl Cpu {
                 is_jmp = true;
             }
 
+            // 0x07 - RLCA - Rotate A left. Old bit 7 to Carry flag.
+            0x07 => {
+                let result = self.alu_rlc(Reg8::A);
+                self.reg.write8(Reg8::A, result);
+                // Flag Z is reset here.
+                self.reg.set_zf(false);
+            }
+
+            // 0x0F - RRCA - Rotate A right. Old bit 0 to Carry flag.
+            0x0F => {
+                let result = self.alu_rrc(Reg8::A);
+                self.reg.write8(Reg8::A, result);
+                // Flag Z is reset here.
+                self.reg.set_zf(false);
+            }
+
+            // 0x17 - RLA - Rotate A left through Carry flag.
+            0x17 => {
+                let result = self.alu_rl(Reg8::A);
+                self.reg.write8(Reg8::A, result);
+                // Flag Z is reset here.
+                self.reg.set_zf(false);
+            }
+
+            // 0x1F - RRA - Rotate A right through Carry flag.
+            0x1F => {
+                let result = self.alu_rr(Reg8::A);
+                self.reg.write8(Reg8::A, result);
+                // Flag Z is reset here.
+                self.reg.set_zf(false);
+            }
+
+            // 0xCB - CB prefix
             0xCB => {
                 todo!("CB prefix not implemented yet.");
                 /*let op = self.imm8();
@@ -1507,5 +1540,55 @@ impl Cpu {
         self.reg.set_nf(false);
         self.reg.set_hf(false);
         self.reg.set_cf(!self.reg.cf());
+    }
+
+    /// ALU Shift/Rotate Update Flags
+    /// Update flags for shift/rotate operations.
+    /// Flags: Z 0 0 C
+    fn alu_sr_flags(&mut self, val: u8, carry: bool) {
+        self.reg.set_zf(val == 0);
+        self.reg.set_nf(false);
+        self.reg.set_hf(false);
+        self.reg.set_cf(carry);
+    }
+
+    /// ALU Rotate Left carry operation.
+    /// Rotate an 8-bit register left through carry flag, return result.
+    fn alu_rlc(&mut self, reg: Reg8) -> u8 {
+        let val = self.reg.read8(reg);
+        let carry = (val & 0x80) != 0;
+        let result = (val << 1) | (if carry { 1 } else { 0 });
+        self.alu_sr_flags(val, carry);
+        result
+    }
+
+    /// ALU Rotate Left operation.
+    /// Rotate an 8-bit register left, return result.
+    fn alu_rl(&mut self, reg: Reg8) -> u8 {
+        let val = self.reg.read8(reg);
+        let carry = (val & 0x80) != 0;
+        let result = (val << 1) | (if self.reg.cf() { 1 } else { 0 });
+        self.alu_sr_flags(val, carry);
+        result
+    }
+
+    /// ALU Rotate Right carry operation.
+    /// Rotate an 8-bit register right through carry flag, return result.
+    fn alu_rrc(&mut self, reg: Reg8) -> u8 {
+        let val = self.reg.read8(reg);
+        let carry = (val & 0x01) != 0;
+        let result = (val >> 1) | (if carry { 0x80 } else { 0 });
+        self.alu_sr_flags(val, carry);
+        result
+    }
+
+    /// ALU Rotate Right operation.
+    /// Rotate an 8-bit register right, return result.
+    fn alu_rr(&mut self, reg: Reg8) -> u8 {
+        let val = self.reg.read8(reg);
+        let carry = (val & 0x01) != 0;
+        let result = (val >> 1) | (if self.reg.cf() { 0x80 } else { 0 });
+        self.alu_sr_flags(val, carry);
+        result
     }
 }
