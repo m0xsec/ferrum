@@ -1160,14 +1160,7 @@ impl Cpu {
     /// Executes a CB-prefix operation, returns the number of cycles
     fn cb_op_execute(&mut self, op: u8) -> u32 {
         let cb_opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::CB_OPCODES_MAP;
-        //let cb_opcode = cb_opcodes.get(&op).unwrap();
-        // TODO: Once all CB opcodes are in the CB opcode map, remove the unwrap_or.
-        let cb_opcode = cb_opcodes.get(&op).unwrap_or(&&opcodes::OpCode {
-            op: 0,
-            length: 0,
-            cycles: 0,
-            mnemonic: "NOP",
-        });
+        let cb_opcode = cb_opcodes.get(&op).unwrap();
 
         info!("CB {:#02x} {}", cb_opcode.op, &cb_opcode.mnemonic);
 
