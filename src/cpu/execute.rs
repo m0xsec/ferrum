@@ -802,7 +802,8 @@ impl Cpu {
                 if !self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -815,7 +816,8 @@ impl Cpu {
                 let addr = self.imm16();
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 is_jmp = true;
             }
 
@@ -827,7 +829,8 @@ impl Cpu {
                 if self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -843,7 +846,8 @@ impl Cpu {
                 if !self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -859,7 +863,8 @@ impl Cpu {
                 if self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 16;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -883,7 +888,8 @@ impl Cpu {
                     ((u32::from(self.reg.read16(Reg16::PC)) as i32) + (i32::from(val))) as u16;
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 is_jmp = true;
             }
 
@@ -897,7 +903,8 @@ impl Cpu {
                 if !self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
                     jmp_len = opcode.length;
@@ -915,7 +922,8 @@ impl Cpu {
                 if self.reg.zf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
                     jmp_len = opcode.length;
@@ -933,7 +941,8 @@ impl Cpu {
                 if !self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
                     jmp_len = opcode.length;
@@ -951,7 +960,8 @@ impl Cpu {
                 if self.reg.cf() {
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 12;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 1; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 8;
                     jmp_len = opcode.length;
@@ -968,7 +978,8 @@ impl Cpu {
                     self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -985,7 +996,8 @@ impl Cpu {
                     self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -999,7 +1011,8 @@ impl Cpu {
                 self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
-                jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 is_jmp = true;
             }
 
@@ -1012,7 +1025,8 @@ impl Cpu {
                     self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;
@@ -1029,7 +1043,8 @@ impl Cpu {
                     self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
                     self.reg.write16(Reg16::PC, addr);
                     jmp_cycles = 24;
-                    jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    //jmp_len = 0; // By-pass the PC increment, since we are jumping.
+                    jmp_len = 2; // Account for the immediate value call in the PC increment.(1 for imm8, 2 for imm16)
                 } else {
                     jmp_cycles = 12;
                     jmp_len = opcode.length;

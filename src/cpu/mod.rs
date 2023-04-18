@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::{debug, info, warn};
 
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
@@ -109,6 +109,33 @@ impl Cpu {
 
         4
     }
+
+    /// Prints the current CPU state to the console.
+    /// Following the formate that Gameboy Logs repo uses
+    /// https://github.com/wheremyfoodat/Gameboy-logs
+    fn testing_print_state(&self) {
+        let pc = self.reg.read16(registers::Reg16::PC);
+        let sp = self.reg.read16(registers::Reg16::SP);
+        let a = self.reg.read8(registers::Reg8::A);
+        let f = self.reg.read8(registers::Reg8::F);
+        let b = self.reg.read8(registers::Reg8::B);
+        let c = self.reg.read8(registers::Reg8::C);
+        let d = self.reg.read8(registers::Reg8::D);
+        let e = self.reg.read8(registers::Reg8::E);
+        let h = self.reg.read8(registers::Reg8::H);
+        let l = self.reg.read8(registers::Reg8::L);
+        let m = self.mem.borrow().read8(pc);
+        let n = self.mem.borrow().read8(pc + 1);
+        let o = self.mem.borrow().read8(pc + 2);
+        let p = self.mem.borrow().read8(pc + 3);
+
+        // Print using the following format
+        // [registers] (mem[pc] mem[pc+1] mem[pc+2] mem[pc+3])
+        println!(
+            "A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})",
+            a, f, b, c, d, e, h, l, sp, pc, m, n, o, p
+        );
+    }
 }
 
 impl Cpu {
@@ -133,7 +160,7 @@ impl Cpu {
             */
             reg: registers::Registers::new(),
             mem,
-            ime: true,
+            ime: false,
 
             // 4.194304 MHz was the highest freq the DMG could run at.
             cycles: 0,
@@ -160,6 +187,8 @@ impl Cpu {
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
     pub fn cycle(&mut self) {
+        self.testing_print_state();
+
         // Handle interrupts
         self.cycles += self.handle_interrupts();
 

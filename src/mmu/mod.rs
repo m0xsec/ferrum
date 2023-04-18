@@ -100,6 +100,9 @@ impl Memory for Mmu {
                         self.if_.borrow().get_raw()
                     }
 
+                    // Stub LY, for testing.
+                    0xFF44 => 0x90,
+
                     _ => self.io[addr as usize - 0xFF00],
                 }
             }
