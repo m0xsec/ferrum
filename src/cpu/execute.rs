@@ -1506,10 +1506,6 @@ impl Cpu {
                     self.reg.write8(reg, result);
                 }
             }
-
-            _ => {
-                todo!("CB opcode: {:#02x}.", op);
-            }
         }
         cb_opcode.cycles
     }
