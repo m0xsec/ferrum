@@ -8,6 +8,12 @@ use std::rc::Rc;
 
 /// The GameBoy DMG-01 (non-color).
 pub struct GameBoy {
+    /// Testing flag, provided as a command line argument.
+    testing: bool,
+
+    /// ROM file path, provided as a command line argument.
+    rom_path: String,
+
     /// The heart of the Gameboy, the CPU.
     /// The CPU is responsible for decoding and executing instructions.
     /// The DMG-01 had a Sharp LR35902 CPU (speculated to be a SM83 core), which is a hybrid of the Z80 and the 8080.
@@ -41,20 +47,26 @@ impl GameBoy {
 
 impl GameBoy {
     /// Initialize Gameboy Hardware
-    pub fn power_on() -> Self {
+    pub fn power_on(testing: bool, rom_path: String) -> Self {
         let mmu = Rc::new(RefCell::new(mmu::Mmu::new()));
         let cpu = cpu::Cpu::power_on(mmu.clone());
-        Self { mmu, cpu }
+        Self {
+            testing,
+            rom_path,
+            mmu,
+            cpu,
+        }
     }
 
     /// Loads the Gameboy DMG-01 Boot ROM
-    pub fn boot_rom(&mut self, testing: bool) {
+    pub fn boot_rom(&mut self) {
         // If we are testing, skip the boot rom and load the test ROM directly.
         // TODO: Once all the opcodes are implemented, we can remove this and actually have the boot ROM run.
-        if testing {
+        if self.testing {
             warn!("Testing mode detected, skipping Boot ROM.");
             self.cpu.test_set_boot_regs();
-            self.read_test_rom("roms/test/blargg/cpu_instrs/individual/02-interrupts.gb");
+            let rom = &self.rom_path.clone();
+            self.read_test_rom(rom);
             return;
         }
 
