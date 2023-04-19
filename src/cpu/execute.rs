@@ -1508,13 +1508,17 @@ impl Cpu {
                     0x3 => (Reg8::E, self.alu_res(bit, self.reg.read8(Reg8::E))),
                     0x4 => (Reg8::H, self.alu_res(bit, self.reg.read8(Reg8::H))),
                     0x5 => (Reg8::L, self.alu_res(bit, self.reg.read8(Reg8::L))),
+                    0x6 => {
+                        let hl = self.reg.read16(Reg16::HL);
+                        let val = self.mem.borrow().read8(hl);
+                        let result = self.alu_res(bit, val);
+                        self.mem.borrow_mut().write8(hl, result);
+                        (Reg8::B, 0)
+                    }
                     0x7 => (Reg8::A, self.alu_res(bit, self.reg.read8(Reg8::A))),
                     _ => unreachable!(),
                 };
-                if op & 0x7 == 0x6 {
-                    let hl = self.reg.read16(Reg16::HL);
-                    self.mem.borrow_mut().write8(hl, result);
-                } else {
+                if op & 0x7 != 0x6 {
                     self.reg.write8(reg, result);
                 }
             }
@@ -1538,13 +1542,17 @@ impl Cpu {
                     0x3 => (Reg8::E, self.alu_set(bit, self.reg.read8(Reg8::E))),
                     0x4 => (Reg8::H, self.alu_set(bit, self.reg.read8(Reg8::H))),
                     0x5 => (Reg8::L, self.alu_set(bit, self.reg.read8(Reg8::L))),
+                    0x6 => {
+                        let hl = self.reg.read16(Reg16::HL);
+                        let val = self.mem.borrow().read8(hl);
+                        let result = self.alu_set(bit, val);
+                        self.mem.borrow_mut().write8(hl, result);
+                        (Reg8::B, 0)
+                    }
                     0x7 => (Reg8::A, self.alu_set(bit, self.reg.read8(Reg8::A))),
                     _ => unreachable!(),
                 };
-                if op & 0x7 == 0x6 {
-                    let hl = self.reg.read16(Reg16::HL);
-                    self.mem.borrow_mut().write8(hl, result);
-                } else {
+                if op & 0x7 != 0x6 {
                     self.reg.write8(reg, result);
                 }
             }
