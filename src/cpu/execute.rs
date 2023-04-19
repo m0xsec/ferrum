@@ -1489,6 +1489,66 @@ impl Cpu {
                 self.alu_bit(bit, val);
             }
 
+            // RES b, r8
+            // b = 0 - 7, r8 = B, C, D, E, H, L, (HL), A
+            // 0x80 .. 0x87 - RES 0, r8
+            // 0x88 .. 0x8F - RES 1, r8
+            // 0x90 .. 0x97 - RES 2, r8
+            // 0x98 .. 0x9F - RES 3, r8
+            // 0xA0 .. 0xA7 - RES 4, r8
+            // 0xA8 .. 0xAF - RES 5, r8
+            // 0xB0 .. 0xB7 - RES 6, r8
+            // 0xB8 .. 0xBF - RES 7, r8
+            0x80..=0xBF => {
+                let bit = (op >> 3) & 0x7;
+                let (reg, result) = match op & 0x7 {
+                    0x0 => (Reg8::B, self.alu_res(bit, self.reg.read8(Reg8::B))),
+                    0x1 => (Reg8::C, self.alu_res(bit, self.reg.read8(Reg8::C))),
+                    0x2 => (Reg8::D, self.alu_res(bit, self.reg.read8(Reg8::D))),
+                    0x3 => (Reg8::E, self.alu_res(bit, self.reg.read8(Reg8::E))),
+                    0x4 => (Reg8::H, self.alu_res(bit, self.reg.read8(Reg8::H))),
+                    0x5 => (Reg8::L, self.alu_res(bit, self.reg.read8(Reg8::L))),
+                    0x7 => (Reg8::A, self.alu_res(bit, self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                if op & 0x7 == 0x6 {
+                    let hl = self.reg.read16(Reg16::HL);
+                    self.mem.borrow_mut().write8(hl, result);
+                } else {
+                    self.reg.write8(reg, result);
+                }
+            }
+
+            // SET b, r8
+            // b = 0 - 7, r8 = B, C, D, E, H, L, (HL), A
+            // 0xC0 .. 0xC7 - SET 0, r8
+            // 0xC8 .. 0xCF - SET 1, r8
+            // 0xD0 .. 0xD7 - SET 2, r8
+            // 0xD8 .. 0xDF - SET 3, r8
+            // 0xE0 .. 0xE7 - SET 4, r8
+            // 0xE8 .. 0xEF - SET 5, r8
+            // 0xF0 .. 0xF7 - SET 6, r8
+            // 0xF8 .. 0xFF - SET 7, r8
+            0xC0..=0xFF => {
+                let bit = (op >> 3) & 0x7;
+                let (reg, result) = match op & 0x7 {
+                    0x0 => (Reg8::B, self.alu_set(bit, self.reg.read8(Reg8::B))),
+                    0x1 => (Reg8::C, self.alu_set(bit, self.reg.read8(Reg8::C))),
+                    0x2 => (Reg8::D, self.alu_set(bit, self.reg.read8(Reg8::D))),
+                    0x3 => (Reg8::E, self.alu_set(bit, self.reg.read8(Reg8::E))),
+                    0x4 => (Reg8::H, self.alu_set(bit, self.reg.read8(Reg8::H))),
+                    0x5 => (Reg8::L, self.alu_set(bit, self.reg.read8(Reg8::L))),
+                    0x7 => (Reg8::A, self.alu_set(bit, self.reg.read8(Reg8::A))),
+                    _ => unreachable!(),
+                };
+                if op & 0x7 == 0x6 {
+                    let hl = self.reg.read16(Reg16::HL);
+                    self.mem.borrow_mut().write8(hl, result);
+                } else {
+                    self.reg.write8(reg, result);
+                }
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
@@ -1985,5 +2045,19 @@ impl Cpu {
         self.reg.set_zf(result);
         self.reg.set_nf(false);
         self.reg.set_hf(true);
+    }
+
+    /// ALU Bit Reset operation.
+    /// Reset bit b in value r (usually a register).
+    /// Flags: None
+    fn alu_res(&mut self, b: u8, r: u8) -> u8 {
+        r & !(1 << b)
+    }
+
+    /// ALU Bit Set operation.
+    /// Set bit b in value r (usually a register).
+    /// Flags: None
+    fn alu_set(&mut self, b: u8, r: u8) -> u8 {
+        r | (1 << b)
     }
 }
