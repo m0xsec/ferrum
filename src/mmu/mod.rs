@@ -100,11 +100,7 @@ impl Memory for Mmu {
                         // Interrupt Flags
                         self.if_.borrow().get_raw()
                     }
-                    0xFF01 => {
-                        // Serial Data Transfer (SB)
-                        info!("Serial Data Transfer (SB) read.");
-                        self.io[addr as usize - 0xFF00]
-                    }
+
                     // Stub LY, for testing.
                     0xFF44 => 0x90,
 
@@ -146,9 +142,8 @@ impl Memory for Mmu {
                     }
                     // Intercept Serial writes, and output to stdout.
                     0xFF01 => {
-                        // SB
+                        // Output serial data, and flush stdout.
                         print!("{}", val as char);
-                        // flush stdout
                         io::stdout().flush().unwrap();
                         self.io[addr as usize - 0xFF00] = val;
                     }
@@ -161,9 +156,6 @@ impl Memory for Mmu {
                 warn!("Attempt to write prohibited area of memory, {:#02x}.", addr);
             }
         }
-
-        let real_val = self.read8(addr);
-        info!("Mem [{:#02x}] = {:#02x}", addr, real_val);
     }
 
     /// Read a word (u16) from memory
