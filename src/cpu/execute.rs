@@ -1611,7 +1611,8 @@ impl Cpu {
         self.reg.set_zf(result == 0);
         self.reg.set_nf(true);
         self.reg.set_hf((a & 0x0F) < (val & 0x0F) + c);
-        self.reg.set_cf(u16::from(a) < u16::from(result));
+        self.reg
+            .set_cf(u16::from(a) < u16::from(result) + u16::from(c));
         self.reg.write8(Reg8::A, result);
     }
 
@@ -1625,7 +1626,8 @@ impl Cpu {
         self.reg.set_zf(result == 0);
         self.reg.set_nf(true);
         self.reg.set_hf((a & 0x0F) < (val & 0x0F) + c);
-        self.reg.set_cf(u16::from(a) < u16::from(result));
+        self.reg
+            .set_cf(u16::from(a) < u16::from(result) + u16::from(c));
         self.reg.write8(Reg8::A, result);
     }
 
