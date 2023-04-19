@@ -1099,7 +1099,7 @@ impl Cpu {
             // 0xFF - RST 38H - Restart at address 0x0038
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
                 let addr = (op & 0x38) as u16;
-                self.stack_push(self.reg.read16(Reg16::PC) + opcode.length as u16);
+                self.stack_push(self.reg.read16(Reg16::PC));
                 self.reg.write16(Reg16::PC, addr);
                 jmp_cycles = opcode.cycles;
                 is_jmp = true;
