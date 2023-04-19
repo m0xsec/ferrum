@@ -2,6 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use log::{info, warn};
 
 mod boot;
+mod cartridge;
 mod cpu;
 mod gb;
 mod mmu;
