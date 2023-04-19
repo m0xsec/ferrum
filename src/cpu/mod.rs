@@ -112,9 +112,9 @@ impl Cpu {
     }
 
     /// Prints the current CPU state to the console.
-    /// Following the formate that Gameboy Logs repo uses
+    /// Following the format that Gameboy Logs repo uses
     /// https://github.com/wheremyfoodat/Gameboy-logs
-    fn testing_print_state(&self) {
+    fn _debug_print_state(&self) {
         let pc = self.reg.read16(registers::Reg16::PC);
         let sp = self.reg.read16(registers::Reg16::SP);
         let a = self.reg.read8(registers::Reg8::A);
@@ -188,7 +188,7 @@ impl Cpu {
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
     pub fn cycle(&mut self) {
-        //self.testing_print_state();
+        //self._debug_print_state();
 
         // Handle interrupts
         self.cycles += self.handle_interrupts();
