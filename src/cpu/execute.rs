@@ -1460,6 +1460,35 @@ impl Cpu {
                 self.mem.borrow_mut().write8(hl, result);
             }
 
+            // BIT b, r8
+            // b = 0 - 7, r8 = B, C, D, E, H, L, (HL), A
+            // 0x40 .. 0x47 - BIT 0, r8
+            // 0x48 .. 0x4F - BIT 1, r8
+            // 0x50 .. 0x57 - BIT 2, r8
+            // 0x58 .. 0x5F - BIT 3, r8
+            // 0x60 .. 0x67 - BIT 4, r8
+            // 0x68 .. 0x6F - BIT 5, r8
+            // 0x70 .. 0x77 - BIT 6, r8
+            // 0x78 .. 0x7F - BIT 7, r8
+            0x40..=0x7F => {
+                let bit = (op >> 3) & 0x7;
+                let val = match op & 0x7 {
+                    0x0 => self.reg.read8(Reg8::B),
+                    0x1 => self.reg.read8(Reg8::C),
+                    0x2 => self.reg.read8(Reg8::D),
+                    0x3 => self.reg.read8(Reg8::E),
+                    0x4 => self.reg.read8(Reg8::H),
+                    0x5 => self.reg.read8(Reg8::L),
+                    0x6 => {
+                        let hl = self.reg.read16(Reg16::HL);
+                        self.mem.borrow().read8(hl)
+                    }
+                    0x7 => self.reg.read8(Reg8::A),
+                    _ => unreachable!(),
+                };
+                self.alu_bit(bit, val);
+            }
+
             _ => {
                 todo!("CB opcode: {:#02x}.", op);
             }
@@ -1946,5 +1975,15 @@ impl Cpu {
         self.reg.set_hf(false);
         self.reg.set_cf(false);
         (val >> 4) | (val << 4)
+    }
+
+    /// ALU Bit Test operation.
+    /// Test bit b in value r (usually a register). Set Z flag if bit is 0.
+    /// Flags: Z 0 1 -
+    fn alu_bit(&mut self, b: u8, r: u8) {
+        let result = r & (1 << b) == 0x00;
+        self.reg.set_zf(result);
+        self.reg.set_nf(false);
+        self.reg.set_hf(true);
     }
 }
