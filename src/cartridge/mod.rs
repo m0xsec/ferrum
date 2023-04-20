@@ -34,6 +34,7 @@ pub struct CartridgeHeader {
 }
 
 /// Cartridge Type
+/// Indicates what kind of hardware is used in the cartridge, most importantly the Memory Bank Controller (MBC).
 pub enum CartridgeType {
     RomOnly = 0x00,
     Mbc1 = 0x01,
