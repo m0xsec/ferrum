@@ -33,6 +33,85 @@ pub struct CartridgeHeader {
     global_checksum: [u8; 2],
 }
 
+/// Cartridge Type
+pub enum CartridgeType {
+    RomOnly = 0x00,
+    Mbc1 = 0x01,
+    Mbc1Ram = 0x02,
+    Mbc1RamBattery = 0x03,
+    Mbc2 = 0x05,
+    Mbc2Battery = 0x06,
+    RomRam = 0x08,
+    RomRamBattery = 0x09,
+    Mmm01 = 0x0B,
+    Mmm01Ram = 0x0C,
+    Mmm01RamBattery = 0x0D,
+    Mbc3TimerBattery = 0x0F,
+    Mbc3TimerRamBattery = 0x10,
+    Mbc3 = 0x11,
+    /* NOTE: MBC3 with 64 KiB of SRAM refers to MBC30,
+    used only in Pocket Monsters: Crystal Version (the Japanese version of Pokémon Crystal Version).
+    */
+    Mbc3Ram = 0x12,
+    Mbc3RamBattery = 0x13,
+    Mbc5 = 0x19,
+    Mbc5Ram = 0x1A,
+    Mbc5RamBattery = 0x1B,
+    Mbc5Rumble = 0x1C,
+    Mbc5RumbleRam = 0x1D,
+    Mbc5RumbleRamBattery = 0x1E,
+    Mbc6 = 0x20,
+    Mbc7SensorRumbleRamBattery = 0x22,
+    PocketCamera = 0xFC,
+    BandaiTama5 = 0xFD,
+    HuC3 = 0xFE,
+    HuC1RamBattery = 0xFF,
+}
+
+/// ROM Size
+/// The ROM size is usually defined by the following formula:
+/// 32KiB x (1 << value).
+/// The number of banks is then calculated by dividing the ROM size by 16KiB.
+pub enum RomSize {
+    Rom32Kb = 0x00,
+    Rom64Kb = 0x01,
+    Rom128Kb = 0x02,
+    Rom256Kb = 0x03,
+    Rom512Kb = 0x04,
+    Rom1Mb = 0x05,
+    Rom2Mb = 0x06,
+    Rom4Mb = 0x07,
+    Rom8Mb = 0x08,
+    /* NOTE:
+    1.1 Mb, 1.2mb, and 1.5 Mb are nly listed in unofficial docs.
+    No cartridges or ROM files using these sizes are known. A
+    s the other ROM sizes are all powers of 2, these are likely inaccurate.
+    The source of these values is unknown.
+     */
+    Rom1_1Mb = 0x52,
+    Rom1_2Mb = 0x53,
+    Rom1_5Mb = 0x54,
+}
+
+/// RAM Size
+/// NOTE: If the cartridge type does not have RAM in its name, the RAM size is 0.
+/// This includes the MBC2, which has 512 x 4 bits of RAM (built directly into the mapper).
+pub enum RamSize {
+    None = 0x00,
+    Kb2Unused = 0x01,
+    Kb8 = 0x02,
+    Kb32 = 0x03,
+    Kb128 = 0x04,
+    Kb64 = 0x05,
+}
+
+/// Destination Code
+/// This is used to determine if the game is for the Japanese market or the international market.
+pub enum DestinationCode {
+    Japan = 0x00,
+    Overseas = 0x01,
+}
+
 /// New Licensee Codes
 /// This is only used if the Old Licensee Code is 0x33
 pub enum NewLicenseeCode {
