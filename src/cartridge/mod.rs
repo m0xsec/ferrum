@@ -1,3 +1,14 @@
+pub mod rom;
+
+/// Cartridge represents a Gameboy ROM
+pub struct Cartridge {
+    /// File path to ROM file.
+    pub path: String,
+
+    /// Cartridge Header, which contains the ROM title and other important information.
+    pub header: CartridgeHeader,
+}
+
 /// The cartridge header contains the following information:
 /// https://gbdev.io/pandocs/The_Cartridge_Header.html#the-cartridge-header
 /// Entry Point - $0100—$0103
