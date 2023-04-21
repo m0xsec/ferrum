@@ -3,7 +3,7 @@ use super::{
     registers::{Reg16, Reg8},
     Cpu,
 };
-use log::info;
+use log::{info, warn};
 use std::collections::HashMap;
 
 impl Cpu {
@@ -1149,7 +1149,7 @@ impl Cpu {
             }
 
             _ => {
-                todo!("opcode: {:#02x}.", op);
+                warn!("Illegal opcode: {:#02x}.", op);
             }
         }
 
