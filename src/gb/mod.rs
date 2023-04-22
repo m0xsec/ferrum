@@ -1,4 +1,5 @@
 use crate::boot;
+use crate::cartridge::Cartridge;
 use crate::cpu;
 use crate::mmu;
 use crate::mmu::memory::Memory;
@@ -13,6 +14,9 @@ pub struct GameBoy {
 
     /// ROM file path, provided as a command line argument.
     rom_path: String,
+
+    /// Gameboy Cartridge (ROM).
+    cartridge: Cartridge,
 
     /// The heart of the Gameboy, the CPU.
     /// The CPU is responsible for decoding and executing instructions.
@@ -50,9 +54,11 @@ impl GameBoy {
     pub fn power_on(testing: bool, rom_path: String) -> Self {
         let mmu = Rc::new(RefCell::new(mmu::Mmu::new()));
         let cpu = cpu::Cpu::power_on(mmu.clone());
+        let cartridge = Cartridge::new(rom_path.clone());
         Self {
             testing,
             rom_path,
+            cartridge,
             mmu,
             cpu,
         }
@@ -78,6 +84,25 @@ impl GameBoy {
     /// Run Gameboy emulation
     pub fn run(&mut self) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
+
+        println!("\nCartridge Info:");
+        println!("\tCartridge Title: {}", self.cartridge.title());
+        println!("\tCartridge Type: {:?}", self.cartridge.mbc());
+        println!("\tROM Size: {:?}", self.cartridge.rom_size());
+        println!("\tRAM Size: {:?}", self.cartridge.ram_size());
+        println!(
+            "\tDestination Code: {:?}",
+            self.cartridge.destination_code()
+        );
+        println!(
+            "\tNew Licensee Code: {:?}",
+            self.cartridge.new_licensee_code()
+        );
+        println!(
+            "\tOld Licensee Code: {:?}\n",
+            self.cartridge.old_licensee_code()
+        );
+
         loop {
             self.cpu.dump_registers();
             self.cpu.cycle();
