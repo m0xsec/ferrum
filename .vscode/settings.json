@@ -18,6 +18,7 @@
         "Joypad",
         "minifb",
         "regs",
+        "repr",
         "RETI",
         "RLCA",
         "ROMX",
