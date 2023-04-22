@@ -32,41 +32,32 @@ impl Cartridge {
 
     /// Cartridge Type
     pub fn mbc(&self) -> CartridgeType {
-        let mbc = CartridgeType::try_from(self.data[0x147]).unwrap();
-        mbc
+        CartridgeType::try_from(self.data[0x147]).unwrap()
     }
 
     /// ROM Size
     pub fn rom_size(&self) -> RomSize {
-        let rom_size = RomSize::try_from(self.data[0x148]).unwrap();
-        rom_size
+        RomSize::try_from(self.data[0x148]).unwrap()
     }
 
     /// RAM Size
     pub fn ram_size(&self) -> RamSize {
-        let ram_size = RamSize::try_from(self.data[0x149]).unwrap();
-        ram_size
+        RamSize::try_from(self.data[0x149]).unwrap()
     }
 
     /// Destination Code
     pub fn destination_code(&self) -> DestinationCode {
-        let destination = DestinationCode::try_from(self.data[0x14A]).unwrap();
-        destination
+        DestinationCode::try_from(self.data[0x14A]).unwrap()
     }
 
     /// New Licensee Code
     pub fn new_licensee_code(&self) -> NewLicenseeCode {
-        let licensee = NewLicenseeCode::try_from(
-            ((self.data[0x144] as u16) << 8 | self.data[0x145] as u16) as u8,
-        )
-        .unwrap();
-
-        licensee
+        NewLicenseeCode::try_from(((self.data[0x144] as u16) << 8 | self.data[0x145] as u16) as u8)
+            .unwrap()
     }
 
     /// Old Licensee Code
     pub fn old_licensee_code(&self) -> OldLicenseeCode {
-        let licensee = OldLicenseeCode::try_from(self.data[0x14B]).unwrap();
-        licensee
+        OldLicenseeCode::try_from(self.data[0x14B]).unwrap()
     }
 }
