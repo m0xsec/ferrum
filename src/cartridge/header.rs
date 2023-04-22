@@ -1,6 +1,5 @@
 use num_enum::IntoPrimitive;
 use num_enum::TryFromPrimitive;
-use std::convert::TryFrom;
 /*
  The cartridge header contains the following information:
  https://gbdev.io/pandocs/The_Cartridge_Header.html#the-cartridge-header
