@@ -94,10 +94,11 @@ impl Memory for Mmu {
                     // Is the Boot ROM enabled?
                     if self.io[0x50] == 0x00 {
                         // Yes, read from Boot ROM.
-                        println!("Reading from Boot ROM: {:04X}", addr);
+                        info!("Reading from Boot ROM: {:04X}", addr);
                         return BOOTROM[addr as usize];
                     } else {
-                        println!("Reading from ROM0: {:04X}", addr);
+                        // No, read from ROM0.
+                        info!("Reading from ROM0: {:04X}", addr);
                         return self.rom0[addr as usize];
                     }
                 }
