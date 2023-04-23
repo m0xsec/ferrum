@@ -65,9 +65,9 @@ impl GameBoy {
             },
             ..Default::default()
         };
-        let rom_name = self.mmu.borrow().rom_title();
+        let rom_title = self.mmu.borrow().rom_title();
         let mut window = Window::new(
-            format!("ferrum - {}", rom_name).as_str(),
+            format!("ferrum - {}", rom_title).as_str(),
             SCREEN_W,
             SCREEN_H,
             option,
