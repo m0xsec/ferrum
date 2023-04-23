@@ -11,13 +11,6 @@ mod timer;
 #[macro_use]
 extern crate lazy_static;
 
-// TODO: For graphics and input, use minifb, or Bevy, or something else?
-// https://github.com/emoon/rust_minifb
-// https://bevyengine.org/
-// Example using minifb for graphics: https://github.com/YushiOMOTE/rgy/blob/master/core/examples/pc/hardware.rs#L75
-// Can just dump GB VRAM to the minifb window buffer :O
-// Bevy would give more flexibility, but getting the ECS to play nice with the Gameboy's architecture might be tricky...
-
 fn main() {
     env_logger::init();
     info!("ferrum is a WIP. Most functionality is not implemented.");
