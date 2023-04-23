@@ -37,9 +37,7 @@ fn main() {
         .get_matches();
 
     let rom_path = matches.get_one::<String>("rom").unwrap();
-
-    // TODO: ROM loading, launch the Gameboy emulator threads, etc, etc
     let mut ferrum = gb::GameBoy::power_on(rom_path.to_string());
-    warn!("Remaining Gameboy boot process is not yet implemented.");
+    warn!("Graphics, input, and sound are not implemented yet. Ferrum will run, but you won't see anything outside of the console.");
     ferrum.run();
 }
