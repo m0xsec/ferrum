@@ -26,6 +26,8 @@ impl GameBoy {
     pub fn run(&mut self) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
 
+        // The Gameboy runs at 4.194304 MHz.
+        // 4194304 Hz / 1000 ms * 16 ms = 67108.8
         let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
         let mut ticks = 0;
 
