@@ -1,4 +1,4 @@
-use clap::{Arg, ArgAction, Command};
+use clap::{Arg, Command};
 use log::{info, warn};
 
 mod boot;
@@ -26,14 +26,6 @@ fn main() {
         .author("m0x <https://github.com/m0xsec/ferrum>")
         .about("A Gameboy emulator written in Rust.")
         .arg(
-            Arg::new("testing")
-                .short('t')
-                .long("testing")
-                .help("Enables testing mode.")
-                .action(ArgAction::SetTrue)
-                .default_value("false"),
-        )
-        .arg(
             Arg::new("rom")
                 .short('r')
                 .long("rom")
@@ -44,16 +36,11 @@ fn main() {
         .arg_required_else_help(true)
         .get_matches();
 
-    let testing = matches.get_flag("testing");
     let rom_path = matches.get_one::<String>("rom").unwrap();
 
-    if testing {
-        warn!("Testing mode enabled.");
-    }
-
     // TODO: ROM loading, launch the Gameboy emulator threads, etc, etc
-    let mut ferrum = gb::GameBoy::power_on(testing, rom_path.to_string());
-    ferrum.boot_rom();
+    let mut ferrum = gb::GameBoy::power_on(rom_path.to_string());
+    ferrum.boot();
     warn!("Remaining Gameboy boot process is not yet implemented.");
     ferrum.run();
 }

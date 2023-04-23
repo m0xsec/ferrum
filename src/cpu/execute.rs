@@ -368,6 +368,12 @@ impl Cpu {
             0xE0 => {
                 let addr = 0xFF00 | (self.imm8() as u16);
                 self.ld8(addr, self.reg.read8(Reg8::A));
+
+                // Gameboy Boot ROM will write to 0xFF50 to disable itself
+                if addr == 0xFF50 {
+                    self.boot_rom_enabled = false;
+                    println!("Boot ROM disabled");
+                }
             }
 
             // 0xF0 - LDH A, (a8) - Load memory at address 0xFF00 + a8 into register A

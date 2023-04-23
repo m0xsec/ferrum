@@ -1,4 +1,3 @@
-use crate::boot;
 use crate::cartridge::Cartridge;
 use crate::cpu;
 use crate::mmu;
@@ -9,9 +8,6 @@ use std::rc::Rc;
 
 /// The GameBoy DMG-01 (non-color).
 pub struct GameBoy {
-    /// Testing flag, provided as a command line argument.
-    testing: bool,
-
     /// ROM file path, provided as a command line argument.
     rom_path: String,
 
@@ -30,14 +26,6 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    /// Loads the Gameboy DMG-01 Boot ROM into memory.
-    fn read_boot_rom(&mut self) {
-        info!("Loading boot rom.");
-        for (addr, val) in boot::BOOTROM.iter().enumerate() {
-            self.mmu.borrow_mut().write8(addr as u16, *val);
-        }
-    }
-
     /// Loads a test ROM into memory from a file.
     /// NOTE: We will have a similar function for loading a ROM from a file later on.
     fn read_test_rom(&mut self, path: &str) {
@@ -51,12 +39,11 @@ impl GameBoy {
 
 impl GameBoy {
     /// Initialize Gameboy Hardware
-    pub fn power_on(testing: bool, rom_path: String) -> Self {
+    pub fn power_on(rom_path: String) -> Self {
         let mmu = Rc::new(RefCell::new(mmu::Mmu::new()));
         let cpu = cpu::Cpu::power_on(mmu.clone());
         let cartridge = Cartridge::new(rom_path.clone());
         Self {
-            testing,
             rom_path,
             cartridge,
             mmu,
@@ -64,20 +51,11 @@ impl GameBoy {
         }
     }
 
-    /// Loads the Gameboy DMG-01 Boot ROM
-    pub fn boot_rom(&mut self) {
-        // If we are testing, skip the boot rom and load the test ROM directly.
-        // TODO: Once all the opcodes are implemented, we can remove this and actually have the boot ROM run.
-        if self.testing {
-            warn!("Testing mode detected, skipping Boot ROM.");
-            self.cpu.test_set_boot_regs();
-            let rom = &self.rom_path.clone();
-            self.read_test_rom(rom);
-            return;
-        }
-
-        // Read boot ROM into memory
-        self.read_boot_rom();
+    /// Boots the Gameboy DMG-01
+    pub fn boot(&mut self) {
+        // NOTE: No need to load BOOT ROM directly, MMU will handle reading from the BOOT ROM before it is unmapped.
+        // TODO: Utilize cartridge data and MBC stuff later...
+        self.read_test_rom(&self.rom_path.clone());
         self.cpu.dump_registers();
     }
 

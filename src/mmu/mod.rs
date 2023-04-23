@@ -1,3 +1,5 @@
+use crate::boot::BOOTROM;
+
 use self::memory::Memory;
 use super::cpu::interrupts::InterruptFlags;
 use log::{info, warn};
@@ -86,7 +88,21 @@ impl Memory for Mmu {
     /// Read a byte (u8) from memory.
     fn read8(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x3FFF => self.rom0[addr as usize],
+            0x0000..=0x3FFF => {
+                // Should we read from Boot ROM?
+                if addr <= 0xFF {
+                    // Is the Boot ROM enabled?
+                    if self.io[0x50] == 0x00 {
+                        // Yes, read from Boot ROM.
+                        println!("Reading from Boot ROM: {:04X}", addr);
+                        return BOOTROM[addr as usize];
+                    } else {
+                        println!("Reading from ROM0: {:04X}", addr);
+                        return self.rom0[addr as usize];
+                    }
+                }
+                self.rom0[addr as usize]
+            }
             0x4000..=0x7FFF => self.romx[addr as usize - 0x4000],
             0x8000..=0x9FFF => self.vram[addr as usize - 0x8000],
             0xA000..=0xBFFF => self.sram[addr as usize - 0xA000],

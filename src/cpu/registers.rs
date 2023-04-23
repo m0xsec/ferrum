@@ -60,6 +60,7 @@ pub struct Registers {
 }
 
 /// Reg8 represents an 8-bit register.
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum Reg8 {
     A,
