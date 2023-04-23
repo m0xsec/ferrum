@@ -1,6 +1,9 @@
 use super::Cartridge;
 use crate::mmu::memory::Memory;
 
+// TODO: Implement other cartridge types.
+// TODO: Implement saving and loading of battery backed RAM.(Save RAM state to a file, etc).
+
 /// No MBC (ROM Only)
 pub struct RomOnly {
     rom: Vec<u8>,
