@@ -6,6 +6,7 @@ mod cartridge;
 mod cpu;
 mod gb;
 mod mmu;
+mod timer;
 
 #[macro_use]
 extern crate lazy_static;

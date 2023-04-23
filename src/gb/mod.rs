@@ -3,6 +3,8 @@ use crate::mmu;
 use log::warn;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::thread::sleep;
+use std::time::Duration;
 
 /// The GameBoy DMG-01 (non-color).
 pub struct GameBoy {
@@ -24,9 +26,17 @@ impl GameBoy {
     pub fn run(&mut self) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
 
+        let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
+        let mut ticks = 0;
+
         loop {
-            self.cpu.dump_registers();
-            self.cpu.cycle();
+            while ticks < waitticks {
+                self.cpu.dump_registers();
+                ticks += self.cpu.cycle();
+            }
+
+            ticks -= waitticks;
+            sleep(Duration::from_millis(16));
         }
     }
 }

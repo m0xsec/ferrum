@@ -27,6 +27,10 @@ impl Memory for RomOnly {
     }
 
     fn write16(&mut self, _: u16, _: u16) {}
+
+    fn cycle(&mut self, _: u32) -> u32 {
+        0
+    }
 }
 
 impl Cartridge for RomOnly {}

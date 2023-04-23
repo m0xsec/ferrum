@@ -1,6 +1,7 @@
 use crate::boot::BOOTROM;
 use crate::cartridge;
 use crate::cartridge::Cartridge;
+use crate::timer::Timer;
 
 use self::memory::Memory;
 use super::cpu::interrupts::InterruptFlags;
@@ -39,8 +40,11 @@ pub struct Mmu {
     /// ROM Bank 01~NN - From cartridge, switchable bank via mapper (if any).
     //romx: [u8; (0x7FFF - 0x4000) + 1],
 
-    // Cartridge ROM Banks
+    /// Cartridge ROM Banks
     cartridge: Box<dyn Cartridge>,
+
+    /// Gameboy Timer
+    timer: Timer,
 
     /// Video RAM (VRAM) - In CGB mode, switchable bank 0/1.
     vram: [u8; (0x9FFF - 0x8000) + 1],
@@ -74,8 +78,10 @@ impl Mmu {
     pub fn new(rom_path: String) -> Self {
         let cartridge = cartridge::new(rom_path);
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
+        let timer = Timer::new();
         Self {
             cartridge,
+            timer,
             vram: [0x00; (0x9FFF - 0x8000) + 1],
             wram0: [0x00; (0xCFFF - 0xC000) + 1],
             wramx: [0x00; (0xDFFF - 0xD000) + 1],
@@ -119,8 +125,11 @@ impl Memory for Mmu {
                     // TODO: Implement the rest of the IO registers.
                     0xFF0F => {
                         // Interrupt Flags
-                        self.if_.borrow().get_raw()
+                        self.if_.borrow().data
                     }
+
+                    // Timer Registers
+                    0xFF04..=0xFF07 => self.timer.get(addr),
 
                     // Stub LY, for testing.
                     0xFF44 => 0x90,
@@ -159,7 +168,7 @@ impl Memory for Mmu {
                     //TODO: Implement the rest of the IO registers.
                     0xFF0F => {
                         // Interrupt Flags
-                        self.if_.borrow_mut().set_raw(val);
+                        self.if_.borrow_mut().data = val;
                     }
                     // Intercept Serial writes, and output to stdout.
                     0xFF01 => {
@@ -167,6 +176,11 @@ impl Memory for Mmu {
                         print!("{}", val as char);
                         io::stdout().flush().unwrap();
                         self.io[addr as usize - 0xFF00] = val;
+                    }
+
+                    // Timer Registers
+                    0xFF04..=0xFF07 => {
+                        self.timer.set(addr, val);
                     }
                     _ => self.io[addr as usize - 0xFF00] = val,
                 }
@@ -195,5 +209,19 @@ impl Memory for Mmu {
         );
         self.write8(addr, (val & 0xFF) as u8);
         self.write8(addr + 1, (val >> 8) as u8);
+    }
+
+    fn cycle(&mut self, ticks: u32) -> u32 {
+        // TODO: Cycle the other components, gputicks, vramticks, etc
+
+        let cpu_ticks = ticks;
+
+        // Cycle the timer.
+        self.timer.cycle(cpu_ticks);
+        self.if_.borrow_mut().data |= self.timer.if_;
+        self.timer.if_ = 0;
+
+        cpu_ticks
+        //gpu_ticks
     }
 }

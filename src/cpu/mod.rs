@@ -3,6 +3,7 @@ use log::{info, warn};
 use crate::mmu::memory::Memory;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::{thread, time};
 mod execute;
 pub mod interrupts;
 mod opcodes;
@@ -22,12 +23,6 @@ pub struct Cpu {
 
     /// Interrupt Master Enable Flag (IME)
     ime: bool,
-
-    /// Clock Cycles
-    /// Interesting discussion - https://www.reddit.com/r/EmuDev/comments/4o2t6k/how_do_you_emulate_specific_cpu_speeds/
-    /// 4.194304 MHz was the highest freq the DMG could run at.
-    cycles: u32,
-    max_cycles: u32,
 
     /// Halt flag, for stopping CPU operation.
     halt: bool,
@@ -54,64 +49,42 @@ impl Cpu {
         // 5. Jump to the starting address of the interrupt.
 
         // If CPU is halted and interrupts are disabled, do nothing.
-        if self.halt && !self.ime {
+        if !self.halt && !self.ime {
             return 0;
         }
 
         // Get Interrupt Enable and Interrupt Flag registers
         let ie = self.mem.borrow().read8(0xFFFF);
         let if_ = self.mem.borrow().read8(0xFF0F);
-
-        // If interrupts are disabled, do nothing.
-        if !self.ime {
-            return 0;
-        }
-
-        // If no interrupts are enabled, do nothing.
-        if ie == 0x00 {
-            return 0;
-        }
-
-        // If no interrupts are pending, do nothing.
-        if if_ == 0x00 {
-            return 0;
-        }
+        let triggered = ie & if_;
 
         // If interrupts are enabled, but none are pending, do nothing.
-        if ie & if_ == 0x00 {
+        if triggered == 0x00 {
             return 0;
         }
 
         // If we get here, we have an interrupt to handle.
         // Reset IME and CPU halt.
-        self.ime = false;
         self.halt = false;
+
+        if !self.ime {
+            return 0;
+        }
+        self.ime = false;
+
+        // Consume the interrupt, and write the remaining interrupts back to the IF register.
+        let i = triggered.trailing_zeros();
+        self.mem.borrow_mut().write8(0xFF0F, if_ & !(1 << i));
 
         // Push the current PC onto the stack
         let pc = self.reg.read16(registers::Reg16::PC);
         self.stack_push(pc);
 
-        // Consume the interrupt, and write the remaining interrupts back to the IF register.
-        let i = (if_ & ie).trailing_zeros();
-        self.mem.borrow_mut().write8(0xFF0F, if_ & !(1 << i));
-
         // Jump to the interrupt
-        let i_addr = match i {
-            // V-Blank
-            0 => 0x0040,
-            // LCD STAT
-            1 => 0x0048,
-            // Timer
-            2 => 0x0050,
-            // Serial
-            3 => 0x0058,
-            // Joypad
-            4 => 0x0060,
-            _ => panic!("Invalid interrupt!"),
-        };
-        self.reg.write16(registers::Reg16::PC, i_addr);
+        self.reg
+            .write16(registers::Reg16::PC, 0x0040 | ((i as u16) << 3));
 
-        4
+        4 * 4
     }
 
     /// Prints the current CPU state to the console.
@@ -166,36 +139,27 @@ impl Cpu {
             mem,
             boot_rom_enabled: true,
             ime: false,
-
-            // 4.194304 MHz was the highest freq the DMG could run at.
-            cycles: 0,
-            max_cycles: 4194304,
-
             halt: false,
         }
     }
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
-    pub fn cycle(&mut self) {
+    pub fn cycle(&mut self) -> u32 {
         //self._debug_print_state();
-
-        // Handle interrupts
-        self.cycles += self.handle_interrupts();
+        let mut ticks = 0;
 
         // If CPU is halted, do nothing.
         if !self.halt {
             let op = self.fetch();
-            self.cycles += self.op_execute(op);
+            ticks += self.op_execute(op);
         } else {
             info!("CPU halted!");
+            ticks += 1;
         }
 
-        if self.cycles > self.max_cycles {
-            warn!("Max CPU Cycles detected, though not yet implemented.");
-            info!("Enforcing 4.194304 Mhz");
-            // TODO: Sleep for 1 second
-            self.cycles = 0;
-        }
+        ticks += self.handle_interrupts();
+        //println!("Ticks: {}", ticks);
+        self.mem.borrow_mut().cycle(ticks)
     }
 
     /// Dumps the current CPU Register values at the info Log level.

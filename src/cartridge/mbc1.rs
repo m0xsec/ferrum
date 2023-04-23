@@ -169,6 +169,10 @@ impl Memory for Mbc1 {
         self.write8(addr, (val & 0xFF) as u8);
         self.write8(addr + 1, (val >> 8) as u8);
     }
+
+    fn cycle(&mut self, _: u32) -> u32 {
+        0
+    }
 }
 
 impl Cartridge for Mbc1 {}
