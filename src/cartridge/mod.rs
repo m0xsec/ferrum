@@ -12,7 +12,10 @@ pub trait Cartridge: Memory {
     fn title(&self) -> String {
         let mut title = String::new();
         for i in 0x134..0x143 {
-            title.push(self.read8(i) as char);
+            match self.read8(i) {
+                0x00 => break,
+                _ => title.push(self.read8(i) as char),
+            }
         }
         title
     }

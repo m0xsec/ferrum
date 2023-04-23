@@ -92,6 +92,10 @@ impl Mmu {
             ie: 0x00,
         }
     }
+
+    pub fn rom_title(&self) -> String {
+        self.cartridge.title()
+    }
 }
 
 impl Memory for Mmu {
