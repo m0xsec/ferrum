@@ -23,6 +23,14 @@ pub struct GameBoy {
     /// The MMU is responsible for mapping memory addresses to actual memory locations.
     mmu: Rc<RefCell<mmu::Mmu>>,
 }
+
+impl GameBoy {
+    /// Initialize Gameboy Audio Hardware (APU)
+    fn init_audio(&mut self) {
+        // TODO: Look at using cpal for audio output, spin up a thread to handle audio, etc.
+        warn!("Audio is not implemented yet.");
+    }
+}
 impl GameBoy {
     /// Initialize Gameboy Hardware
     pub fn power_on(rom_path: String) -> Self {
@@ -36,6 +44,15 @@ impl GameBoy {
     pub fn run(&mut self) {
         warn!("Emulation loop is a work in progress, no threading or event handling.");
 
+        // The Gameboy runs at 4.194304 MHz.
+        // 4194304 Hz / 1000 ms * 16 ms = 67108.8
+        let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
+        let mut ticks = 0;
+
+        // Initialize Audio
+        self.init_audio();
+
+        // Setup window for rendering
         let render_scale = 4;
         let option = WindowOptions {
             resize: false,
@@ -56,16 +73,14 @@ impl GameBoy {
             option,
         )
         .unwrap();
+
+        // Initialize window buffer
         let mut window_buffer = vec![0x00; SCREEN_W * SCREEN_H];
         window
             .update_with_buffer(window_buffer.as_slice(), SCREEN_W, SCREEN_H)
             .unwrap();
 
-        // The Gameboy runs at 4.194304 MHz.
-        // 4194304 Hz / 1000 ms * 16 ms = 67108.8
-        let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
-        let mut ticks = 0;
-
+        // Emulation loop
         loop {
             // Stop emulation if window is closed.
             if !window.is_open() {
@@ -98,5 +113,6 @@ impl GameBoy {
             sleep(Duration::from_millis(16));
         }
         // TODO: Handle emulation exit, such as saving RAM to file...
+        println!("\nkthxbai <3");
     }
 }
