@@ -1,63 +1,73 @@
 pub mod header;
+pub mod mbc;
 
-use self::header::*;
+use crate::mmu::memory::Memory;
+
+use self::{header::*, mbc::*};
 
 /// Cartridge represents a Gameboy ROM
-pub struct Cartridge {
-    /// File path to ROM file.
-    pub path: String,
-
-    /// ROM data.
-    pub data: Vec<u8>,
-}
-
-impl Cartridge {
-    /// Initialize a new Cartridge.
-    pub fn new(path: String) -> Self {
-        let rom_data = std::fs::read(path.clone()).unwrap();
-        Self {
-            path,
-            data: rom_data,
-        }
-    }
-
+pub trait Cartridge: Memory {
     /// Cartridge Tile
-    pub fn title(&self) -> String {
+    fn title(&self) -> String {
         let mut title = String::new();
         for i in 0x134..0x143 {
-            title.push(self.data[i] as char);
+            title.push(self.read8(i) as char);
         }
         title
     }
 
     /// Cartridge Type
-    pub fn mbc(&self) -> CartridgeType {
-        CartridgeType::try_from(self.data[0x147]).unwrap()
+    fn mbc(&self) -> CartridgeType {
+        CartridgeType::try_from(self.read8(0x147)).unwrap()
     }
 
     /// ROM Size
-    pub fn rom_size(&self) -> RomSize {
-        RomSize::try_from(self.data[0x148]).unwrap()
+    fn rom_size(&self) -> RomSize {
+        RomSize::try_from(self.read8(0x148)).unwrap()
     }
 
     /// RAM Size
-    pub fn ram_size(&self) -> RamSize {
-        RamSize::try_from(self.data[0x149]).unwrap()
+    fn ram_size(&self) -> RamSize {
+        RamSize::try_from(self.read8(0x149)).unwrap()
     }
 
     /// Destination Code
-    pub fn destination_code(&self) -> DestinationCode {
-        DestinationCode::try_from(self.data[0x14A]).unwrap()
+    fn destination_code(&self) -> DestinationCode {
+        DestinationCode::try_from(self.read8(0x14A)).unwrap()
     }
 
     /// New Licensee Code
-    pub fn new_licensee_code(&self) -> NewLicenseeCode {
-        NewLicenseeCode::try_from(((self.data[0x144] as u16) << 8 | self.data[0x145] as u16) as u8)
-            .unwrap()
+    fn new_licensee_code(&self) -> NewLicenseeCode {
+        NewLicenseeCode::try_from(
+            ((self.read8(0x144) as u16) << 8 | self.read8(0x145) as u16) as u8,
+        )
+        .unwrap()
     }
 
     /// Old Licensee Code
-    pub fn old_licensee_code(&self) -> OldLicenseeCode {
-        OldLicenseeCode::try_from(self.data[0x14B]).unwrap()
+    fn old_licensee_code(&self) -> OldLicenseeCode {
+        OldLicenseeCode::try_from(self.read8(0x14B)).unwrap()
     }
+}
+
+/// Initialize a new Cartridge.
+pub fn new(path: String) -> Box<dyn Cartridge> {
+    let rom_data = std::fs::read(path.clone()).unwrap();
+    let cart: Box<dyn Cartridge> = match CartridgeType::try_from(rom_data[0x147]).unwrap() {
+        CartridgeType::RomOnly => Box::new(RomOnly::new(rom_data)),
+        CartridgeType::Mbc1 => Box::new(Mbc1::new(rom_data, vec![])),
+        //TODO: Implement other cartridge types.
+        _ => todo!("Unsupported cartridge type: {:?}", path),
+    };
+
+    println!("\nCartridge Info:");
+    println!("\tCartridge Title: {}", cart.title());
+    println!("\tCartridge Type: {:?}", cart.mbc());
+    println!("\tROM Size: {:?}", cart.rom_size());
+    println!("\tRAM Size: {:?}", cart.ram_size());
+    println!("\tDestination Code: {:?}", cart.destination_code());
+    println!("\tNew Licensee Code: {:?}", cart.new_licensee_code());
+    println!("\tOld Licensee Code: {:?}\n", cart.old_licensee_code());
+
+    cart
 }

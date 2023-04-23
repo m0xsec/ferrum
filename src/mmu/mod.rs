@@ -1,4 +1,6 @@
 use crate::boot::BOOTROM;
+use crate::cartridge;
+use crate::cartridge::Cartridge;
 
 use self::memory::Memory;
 use super::cpu::interrupts::InterruptFlags;
@@ -32,16 +34,19 @@ pub mod memory;
 /// https://gbdev.io/pandocs/Memory_Map.html
 pub struct Mmu {
     /// ROM Bank 00 - From cartridge, usually a fixed bank.
-    rom0: [u8; 0x3FFF + 1],
+    //rom0: [u8; 0x3FFF + 1],
 
     /// ROM Bank 01~NN - From cartridge, switchable bank via mapper (if any).
-    romx: [u8; (0x7FFF - 0x4000) + 1],
+    //romx: [u8; (0x7FFF - 0x4000) + 1],
+
+    // Cartridge ROM Banks
+    cartridge: Box<dyn Cartridge>,
 
     /// Video RAM (VRAM) - In CGB mode, switchable bank 0/1.
     vram: [u8; (0x9FFF - 0x8000) + 1],
 
     /// External RAM (SRAM) - From cartridge, switchable bank (if any).
-    sram: [u8; (0xBFFF - 0xA000) + 1],
+    //sram: [u8; (0xBFFF - 0xA000) + 1],
 
     /// Work RAM Bank 00 (WRAM).
     wram0: [u8; (0xCFFF - 0xC000) + 1],
@@ -66,13 +71,12 @@ pub struct Mmu {
 }
 
 impl Mmu {
-    pub fn new() -> Self {
+    pub fn new(rom_path: String) -> Self {
+        let cartridge = cartridge::new(rom_path);
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
         Self {
-            rom0: [0x00; 0x3FFF + 1],
-            romx: [0x00; (0x7FFF - 0x4000) + 1],
+            cartridge,
             vram: [0x00; (0x9FFF - 0x8000) + 1],
-            sram: [0x00; (0xBFFF - 0xA000) + 1],
             wram0: [0x00; (0xCFFF - 0xC000) + 1],
             wramx: [0x00; (0xDFFF - 0xD000) + 1],
             oam: [0x00; (0xFE9F - 0xFE00) + 1],
@@ -99,14 +103,14 @@ impl Memory for Mmu {
                     } else {
                         // No, read from ROM0.
                         info!("Reading from ROM0: {:04X}", addr);
-                        return self.rom0[addr as usize];
+                        return self.cartridge.read8(addr);
                     }
                 }
-                self.rom0[addr as usize]
+                self.cartridge.read8(addr)
             }
-            0x4000..=0x7FFF => self.romx[addr as usize - 0x4000],
+            0x4000..=0x7FFF => self.cartridge.read8(addr),
             0x8000..=0x9FFF => self.vram[addr as usize - 0x8000],
-            0xA000..=0xBFFF => self.sram[addr as usize - 0xA000],
+            0xA000..=0xBFFF => self.cartridge.read8(addr),
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF],
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF],
             0xFE00..=0xFE9F => self.oam[addr as usize - 0xFE00],
@@ -143,10 +147,10 @@ impl Memory for Mmu {
             val, addr
         );
         match addr {
-            0x0000..=0x3FFF => self.rom0[addr as usize] = val,
-            0x4000..=0x7FFF => self.romx[addr as usize - 0x4000] = val,
+            0x0000..=0x3FFF => self.cartridge.write8(addr, val),
+            0x4000..=0x7FFF => self.cartridge.write8(addr, val),
             0x8000..=0x9FFF => self.vram[addr as usize - 0x8000] = val,
-            0xA000..=0xBFFF => self.sram[addr as usize - 0xA000] = val,
+            0xA000..=0xBFFF => self.cartridge.write8(addr, val),
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF] = val,
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF] = val,
             0xFE00..=0xFE9F => self.oam[addr as usize - 0xFE00] = val,

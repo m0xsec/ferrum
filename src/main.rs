@@ -40,7 +40,6 @@ fn main() {
 
     // TODO: ROM loading, launch the Gameboy emulator threads, etc, etc
     let mut ferrum = gb::GameBoy::power_on(rom_path.to_string());
-    ferrum.boot();
     warn!("Remaining Gameboy boot process is not yet implemented.");
     ferrum.run();
 }
