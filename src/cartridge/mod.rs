@@ -1,9 +1,10 @@
 pub mod header;
 pub mod mbc;
+pub mod mbc1;
 
 use crate::mmu::memory::Memory;
 
-use self::{header::*, mbc::*};
+use self::{header::*, mbc::*, mbc1::*};
 
 /// Cartridge represents a Gameboy ROM
 pub trait Cartridge: Memory {
