@@ -95,8 +95,13 @@ impl GameBoy {
 
             // TODO: Check for PPU updates and render to window buffer.
             for (i, pixel) in window_buffer.iter_mut().enumerate() {
-                *pixel = if i % 2 == 0 { 0x00 } else { 0x55 };
+                *pixel = if i % 8 == 0 { 0x00 } else { 0x55 * i as u32 };
             }
+
+            // TEST: Iterate VRAM and update window buffer.
+            /*for (i, pixel) in self.mmu.borrow().get_vram().iter().enumerate() {
+                window_buffer[i] = *pixel as u32;
+            }*/
 
             window
                 .update_with_buffer(window_buffer.as_slice(), SCREEN_W, SCREEN_H)

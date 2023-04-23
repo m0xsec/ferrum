@@ -96,6 +96,10 @@ impl Mmu {
     pub fn rom_title(&self) -> String {
         self.cartridge.title()
     }
+
+    pub fn get_vram(&self) -> &[u8] {
+        &self.vram
+    }
 }
 
 impl Memory for Mmu {
