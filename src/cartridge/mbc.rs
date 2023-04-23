@@ -40,6 +40,7 @@ enum BankMode {
     Ram,
 }
 
+/// https://gbdev.io/pandocs/MBC1.html
 /// This is the first MBC chip for the gameboy. Any newer MBC chips are working similiar, so that is relative easy to
 /// upgrade a program from one MBC chip to another - or even to make it compatible to several different types of MBCs.
 /// Note that the memory in range 0000-7FFF is used for both reading from ROM, and for writing to the MBCs Control
