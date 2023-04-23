@@ -78,7 +78,7 @@ impl Mmu {
     pub fn new(rom_path: String) -> Self {
         let cartridge = cartridge::new(rom_path);
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
-        let timer = Timer::new();
+        let timer = Timer::new(interrupt_flags.clone());
         Self {
             cartridge,
             timer,
@@ -218,8 +218,6 @@ impl Memory for Mmu {
 
         // Cycle the timer.
         self.timer.cycle(cpu_ticks);
-        self.if_.borrow_mut().data |= self.timer.if_;
-        self.timer.if_ = 0;
 
         cpu_ticks
         //gpu_ticks

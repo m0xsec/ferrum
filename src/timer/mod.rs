@@ -1,5 +1,9 @@
 pub mod clock;
 
+use std::{cell::RefCell, rc::Rc};
+
+use crate::cpu::interrupts::{Flags, InterruptFlags};
+
 use self::clock::Clock;
 
 #[derive(Default)]
@@ -27,16 +31,16 @@ struct Register {
 // setting Bit 2 in the IF Register (FF0F). When that interrupt is enabled, then the CPU will execute it by calling
 // the timer interrupt vector at 0050h.
 pub struct Timer {
-    pub if_: u8,
+    if_: Rc<RefCell<InterruptFlags>>,
     reg: Register,
     div_clock: Clock,
     tma_clock: Clock,
 }
 
 impl Timer {
-    pub fn new() -> Self {
+    pub fn new(if_: Rc<RefCell<InterruptFlags>>) -> Self {
         Timer {
-            if_: 0x00,
+            if_,
             reg: Register::default(),
             div_clock: Clock::new(256),
             tma_clock: Clock::new(1024),
@@ -94,7 +98,7 @@ impl Timer {
                 self.reg.tima = self.reg.tima.wrapping_add(1);
                 if self.reg.tima == 0x00 {
                     self.reg.tima = self.reg.tma;
-                    self.if_ |= 0x04;
+                    self.if_.borrow_mut().set(Flags::Timer);
                 }
             }
         }

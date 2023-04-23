@@ -5,11 +5,11 @@
 /// Bit 3: Serial   Interrupt Request (INT 58h)  (1=Request)
 /// Bit 4: Joypad   Interrupt Request (INT 60h)  (1=Request)
 pub enum Flags {
-    VBlank,
-    LCDStat,
-    Timer,
-    Serial,
-    Joypad,
+    VBlank = 0x00,
+    LCDStat = 0x01,
+    Timer = 0x02,
+    Serial = 0x03,
+    Joypad = 0x04,
 }
 
 pub struct InterruptFlags {

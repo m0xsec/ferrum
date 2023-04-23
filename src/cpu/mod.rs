@@ -1,9 +1,8 @@
-use log::{info, warn};
-
 use crate::mmu::memory::Memory;
+use log::info;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::{thread, time};
+
 mod execute;
 pub mod interrupts;
 mod opcodes;
@@ -84,7 +83,7 @@ impl Cpu {
         self.reg
             .write16(registers::Reg16::PC, 0x0040 | ((i as u16) << 3));
 
-        4 * 4
+        16
     }
 
     /// Prints the current CPU state to the console.
