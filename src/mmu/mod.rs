@@ -6,6 +6,7 @@ use crate::timer::Timer;
 use self::memory::Memory;
 use super::cpu::interrupts::InterruptFlags;
 use log::{info, warn};
+use rand::Rng;
 use std::io;
 use std::io::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -79,16 +80,33 @@ impl Mmu {
         let cartridge = cartridge::new(rom_path);
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
         let timer = Timer::new(interrupt_flags.clone());
+
+        // Randomize WRAM and HRAM, per Pan docs
+        // https://gbdev.io/pandocs/Power_Up_Sequence.html#common-remarks
+        let mut rng = rand::rngs::ThreadRng::default();
+        let mut wram0: [u8; (0xCFFF - 0xC000) + 1] = [0x00; (0xCFFF - 0xC000) + 1];
+        let mut wramx: [u8; (0xDFFF - 0xD000) + 1] = [0x00; (0xDFFF - 0xD000) + 1];
+        let mut hram: [u8; (0xFFFE - 0xFF80) + 1] = [0x00; (0xFFFE - 0xFF80) + 1];
+        for i in wram0.iter_mut() {
+            *i = rng.gen();
+        }
+        for i in wramx.iter_mut() {
+            *i = rng.gen();
+        }
+        for i in hram.iter_mut() {
+            *i = rng.gen();
+        }
+
         Self {
             cartridge,
             timer,
             vram: [0x00; (0x9FFF - 0x8000) + 1],
-            wram0: [0x00; (0xCFFF - 0xC000) + 1],
-            wramx: [0x00; (0xDFFF - 0xD000) + 1],
+            wram0,
+            wramx,
             oam: [0x00; (0xFE9F - 0xFE00) + 1],
             io: [0x00; (0xFF7F - 0xFF00) + 1],
             if_: interrupt_flags,
-            hram: [0x00; (0xFFFE - 0xFF80) + 1],
+            hram,
             ie: 0x00,
         }
     }
