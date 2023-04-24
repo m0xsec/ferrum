@@ -6,6 +6,7 @@ mod cartridge;
 mod cpu;
 mod gb;
 mod mmu;
+mod ppu;
 mod timer;
 
 #[macro_use]

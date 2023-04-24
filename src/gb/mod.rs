@@ -1,15 +1,12 @@
 use crate::cpu;
 use crate::mmu;
+use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use log::warn;
 use minifb::{Key, Window, WindowOptions};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
-
-/// The GameBoy DMG-01 (non-color) screen is 160x144 pixels.
-pub const SCREEN_W: usize = 160;
-pub const SCREEN_H: usize = 144;
 
 /// The GameBoy DMG-01 (non-color).
 pub struct GameBoy {
@@ -68,16 +65,16 @@ impl GameBoy {
         let rom_title = self.mmu.borrow().rom_title();
         let mut window = Window::new(
             format!("ferrum - {}", rom_title).as_str(),
-            SCREEN_W,
-            SCREEN_H,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
             option,
         )
         .unwrap();
 
         // Initialize window buffer
-        let mut window_buffer = vec![0x00; SCREEN_W * SCREEN_H];
+        let mut window_buffer = vec![0x00; SCREEN_WIDTH * SCREEN_HEIGHT];
         window
-            .update_with_buffer(window_buffer.as_slice(), SCREEN_W, SCREEN_H)
+            .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
             .unwrap();
 
         // Emulation loop
@@ -104,7 +101,7 @@ impl GameBoy {
             }*/
 
             window
-                .update_with_buffer(window_buffer.as_slice(), SCREEN_W, SCREEN_H)
+                .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
                 .unwrap();
 
             // Handle keyboard input.
