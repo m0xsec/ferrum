@@ -8,7 +8,9 @@ https://pixelbits.16-b.it/GBEDG/ppu/#the-screen
 https://emudev.de/gameboy-emulator/%e2%af%88-ppu-rgb-arrays-and-sdl/
  */
 
-use crate::mmu::memory::Memory;
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{cpu::interrupts::InterruptFlags, mmu::memory::Memory};
 
 /// The Gameboy outputs a 160x144 pixel LCD screen.
 pub const SCREEN_WIDTH: usize = 160;
@@ -23,6 +25,7 @@ enum Color {
 }
 
 /// LCDC (LCD Control) Register
+/// FF40 — LCDC: LCD Control
 struct Lcdc {
     /// LCD and PPU Enable
     /// 0: Off, 1: On
@@ -72,6 +75,14 @@ impl Lcdc {
     }
 }
 
+/// STAT Mode Flag
+enum Mode {
+    HBlank = 0,
+    VBlank = 1,
+    OamSearch = 2,    // AccessOAM
+    DataTransfer = 3, // AccessVRAM
+}
+
 /// STAT (LCDC Status) Register
 /// FF41 — STAT: LCD status
 struct Stat {
@@ -96,6 +107,19 @@ struct Stat {
     ///   2: During Searching OAM-RAM
     ///   3: During Transferring Data to LCD Driver
     mode_flag: u8,
+}
+
+impl Stat {
+    fn new() -> Self {
+        Self {
+            lyc_interrupt: 0x00,
+            mode2_interrupt: 0x00,
+            mode1_interrupt: 0x00,
+            mode0_interrupt: 0x00,
+            lyc_flag: 0x00,
+            mode_flag: 0x00,
+        }
+    }
 }
 
 /// PPU (Picture Processing Unit)
@@ -140,6 +164,9 @@ struct Ppu {
     /* Memory */
     vram: [u8; 0x2000], // 8KB Video RAM
     oam: [u8; 0xA0],    // 160B Object Attribute Memory
+
+    /* Interrupt Flags from MMU */
+    if_: Rc<RefCell<InterruptFlags>>,
 }
 
 impl Memory for Ppu {
