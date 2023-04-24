@@ -1,5 +1,7 @@
 use crate::cpu;
 use crate::mmu;
+use crate::ppu::ScreenBuffer;
+use crate::ppu::SCREEN_PIXELS;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use log::warn;
 use minifb::{Key, Window, WindowOptions};
@@ -90,10 +92,25 @@ impl GameBoy {
                 ticks += self.cpu.cycle();
             }
 
-            // TODO: Check for PPU updates and render to window buffer.
-            for (i, pixel) in window_buffer.iter_mut().enumerate() {
-                *pixel = if i % 8 == 0 { 0x00 } else { 0x55 * i as u32 };
+            // Is the PPU ready to render?
+            let updated = self.mmu.borrow_mut().ppu_updated();
+            if updated {
+                let mut render_buffer = [0u8; SCREEN_PIXELS];
+                let ppu_buffer = *self.mmu.borrow_mut().ppu_get_buffer();
+                for i in 0..SCREEN_PIXELS {
+                    render_buffer[i] = ppu_buffer[i] as u8;
+                }
+
+                // Update window buffer
+                for (i, pixel) in window_buffer.iter_mut().enumerate() {
+                    *pixel = render_buffer[i] as u32;
+                }
             }
+
+            // TODO: Check for PPU updates and render to window buffer.
+            /*for (i, pixel) in window_buffer.iter_mut().enumerate() {
+                *pixel = if i % 8 == 0 { 0x00 } else { 0x55 * i as u32 };
+            }*/
 
             // TEST: Iterate VRAM and update window buffer.
             /*for (i, pixel) in self.mmu.borrow().get_vram().iter().enumerate() {

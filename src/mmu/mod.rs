@@ -1,7 +1,7 @@
 use crate::boot::BOOTROM;
 use crate::cartridge;
 use crate::cartridge::Cartridge;
-use crate::ppu::Ppu;
+use crate::ppu::{Ppu, ScreenBuffer};
 use crate::timer::Timer;
 
 use self::memory::Memory;
@@ -119,6 +119,16 @@ impl Mmu {
 
     pub fn rom_title(&self) -> String {
         self.cartridge.title()
+    }
+
+    pub fn ppu_updated(&mut self) -> bool {
+        let result = self.ppu.updated;
+        self.ppu.updated = false;
+        result
+    }
+
+    pub fn ppu_get_buffer(&mut self) -> &ScreenBuffer {
+        &self.ppu.buffer
     }
 }
 

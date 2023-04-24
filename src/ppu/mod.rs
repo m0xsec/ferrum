@@ -9,7 +9,10 @@ https://emudev.de/gameboy-emulator/%e2%af%88-ppu-rgb-arrays-and-sdl/
 https://github.com/Gekkio/mooneye-gb
  */
 
-use crate::{cpu::interrupts::InterruptFlags, mmu::memory::Memory};
+use crate::{
+    cpu::interrupts::{Flags, InterruptFlags},
+    mmu::memory::Memory,
+};
 use bitflags::bitflags;
 use log::warn;
 use std::{cell::RefCell, rc::Rc};
@@ -17,6 +20,9 @@ use std::{cell::RefCell, rc::Rc};
 /// The Gameboy outputs a 160x144 pixel LCD screen.
 pub const SCREEN_WIDTH: usize = 160;
 pub const SCREEN_HEIGHT: usize = 144;
+pub const SCREEN_PIXELS: usize = SCREEN_WIDTH * SCREEN_HEIGHT;
+pub type ScreenBuffer = [Color; SCREEN_PIXELS];
+pub const SCREEN_EMPTY: ScreenBuffer = [Color::Off; SCREEN_PIXELS];
 
 /// The PPU had varying cycles depending on the mode it was in.
 const ACCESS_OAM_CYCLES: u32 = 21;
@@ -56,7 +62,7 @@ struct Sprite {
 /// Gameboy (DMG-01) had 4 shades of gray for possible colors.
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
-enum Color {
+pub enum Color {
     Off = 0,
     Light = 1,
     Dark = 2,
@@ -177,6 +183,7 @@ bitflags!(
 ///   1: During V-Blank
 ///   2: During Searching OAM-RAM
 ///   3: During Transferring Data to LCD Driver
+#[derive(Copy, Clone, PartialEq, Eq)]
 enum Mode {
     HBlank = 0,
     VBlank = 1,
@@ -230,6 +237,13 @@ pub struct Ppu {
 
     /* Interrupt Flags from MMU */
     if_: Rc<RefCell<InterruptFlags>>,
+
+    /* Internal State */
+    cycles: u32,
+
+    /* Public State */
+    pub updated: bool,
+    pub buffer: Box<ScreenBuffer>,
 }
 
 impl Ppu {
@@ -251,7 +265,56 @@ impl Ppu {
             vram: [0; 0x2000],
             oam: [0; 0xA0],
             if_,
+            cycles: ACCESS_OAM_CYCLES,
+            updated: false,
+            buffer: Box::new(SCREEN_EMPTY),
         }
+    }
+
+    /// Handle switching between modes and triggering interrupts
+    fn update_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+        self.cycles += match self.mode {
+            Mode::AccessOAM => ACCESS_OAM_CYCLES,
+            Mode::AccessVRAM => ACCESS_VRAM_CYCLES,
+            Mode::HBlank => HBLANK_CYCLES,
+            Mode::VBlank => VBLANK_CYCLES,
+        };
+        match self.mode {
+            Mode::HBlank => {}
+            Mode::VBlank => {
+                self.if_.borrow_mut().set(Flags::VBlank);
+                if self.stat.contains(StatFlags::VBLANK_INT) {
+                    self.if_.borrow_mut().set(Flags::LCDStat);
+                }
+            }
+            Mode::AccessOAM => {
+                if self.stat.contains(StatFlags::OAM_INT) {
+                    self.if_.borrow_mut().set(Flags::LCDStat);
+                }
+            }
+            Mode::AccessVRAM => {}
+        }
+    }
+
+    /// Check the LYC=LY flag and trigger interrupt if necessary
+    fn check_lyc(&mut self) {
+        if self.ly == self.lyc {
+            self.stat.insert(StatFlags::COMPARE);
+            if self.stat.contains(StatFlags::COMPARE_INT) {
+                self.if_.borrow_mut().set(Flags::LCDStat);
+            }
+        } else {
+            self.stat.remove(StatFlags::COMPARE);
+        }
+    }
+
+    /// Draw the current line to the video buffer
+    fn draw_line(&mut self) {
+        // TODO: Draw background
+        // TODO: Draw window
+        // TODO: Draw sprites
+        warn!("Drawing line not implemented");
     }
 }
 
@@ -331,8 +394,55 @@ impl Memory for Ppu {
         self.write8(addr + 1, (val >> 8) as u8);
     }
 
-    fn cycle(&mut self, ticks: u32) -> u32 {
-        // TODO: Handle actual drawing, etc.
-        VBLANK_CYCLES
+    fn cycle(&mut self, _: u32) -> u32 {
+        // Is the LDC on?
+        if !self.control.contains(LcdcFlags::LCD_DISPLAY_ENABLE) {
+            return 0;
+        }
+
+        // STAT mode=0 interrupt happens one cycle before the mode actually changes
+        self.cycles -= 1;
+        if self.cycles == 1
+            && self.mode == Mode::AccessVRAM
+            && self.stat.contains(StatFlags::HBLANK_INT)
+        {
+            self.if_.borrow_mut().set(Flags::LCDStat);
+        }
+        if self.cycles > 0 {
+            return 0;
+        }
+
+        // Take action depending on current mode
+        match self.mode {
+            Mode::AccessOAM => {
+                self.update_mode(Mode::AccessVRAM);
+            }
+            Mode::AccessVRAM => {
+                self.draw_line();
+                self.update_mode(Mode::HBlank);
+            }
+            Mode::HBlank => {
+                self.ly += 1;
+                if self.ly < 144 {
+                    self.update_mode(Mode::AccessOAM);
+                } else {
+                    self.updated = true;
+                    self.update_mode(Mode::VBlank);
+                }
+                self.check_lyc();
+            }
+            Mode::VBlank => {
+                self.ly += 1;
+                if self.ly > 153 {
+                    self.ly = 0;
+                    self.check_lyc();
+                    self.update_mode(Mode::AccessOAM);
+                } else {
+                    self.cycles += VBLANK_CYCLES;
+                }
+                self.check_lyc();
+            }
+        }
+        self.cycles
     }
 }
