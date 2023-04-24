@@ -1,6 +1,7 @@
 use crate::boot::BOOTROM;
 use crate::cartridge;
 use crate::cartridge::Cartridge;
+use crate::ppu::Ppu;
 use crate::timer::Timer;
 
 use self::memory::Memory;
@@ -47,8 +48,11 @@ pub struct Mmu {
     /// Gameboy Timer
     timer: Timer,
 
+    /// Gameboy PPU
+    ppu: Ppu,
+
     /// Video RAM (VRAM) - In CGB mode, switchable bank 0/1.
-    vram: [u8; (0x9FFF - 0x8000) + 1],
+    //vram: [u8; (0x9FFF - 0x8000) + 1],
 
     /// External RAM (SRAM) - From cartridge, switchable bank (if any).
     //sram: [u8; (0xBFFF - 0xA000) + 1],
@@ -60,7 +64,7 @@ pub struct Mmu {
     wramx: [u8; (0xDFFF - 0xD000) + 1],
 
     /// Sprite attribute table (OAM).
-    oam: [u8; (0xFE9F - 0xFE00) + 1],
+    //oam: [u8; (0xFE9F - 0xFE00) + 1],
 
     /// I/O Registers.
     io: [u8; (0xFF7F - 0xFF00) + 1],
@@ -80,6 +84,7 @@ impl Mmu {
         let cartridge = cartridge::new(rom_path);
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
         let timer = Timer::new(interrupt_flags.clone());
+        let ppu = Ppu::new(interrupt_flags.clone());
 
         // Randomize WRAM and HRAM, per Pan docs
         // https://gbdev.io/pandocs/Power_Up_Sequence.html#common-remarks
@@ -100,10 +105,11 @@ impl Mmu {
         Self {
             cartridge,
             timer,
-            vram: [0x00; (0x9FFF - 0x8000) + 1],
+            ppu,
+            //vram: [0x00; (0x9FFF - 0x8000) + 1],
             wram0,
             wramx,
-            oam: [0x00; (0xFE9F - 0xFE00) + 1],
+            //oam: [0x00; (0xFE9F - 0xFE00) + 1],
             io: [0x00; (0xFF7F - 0xFF00) + 1],
             if_: interrupt_flags,
             hram,
@@ -113,10 +119,6 @@ impl Mmu {
 
     pub fn rom_title(&self) -> String {
         self.cartridge.title()
-    }
-
-    pub fn get_vram(&self) -> &[u8] {
-        &self.vram
     }
 }
 
@@ -141,11 +143,11 @@ impl Memory for Mmu {
                 self.cartridge.read8(addr)
             }
             0x4000..=0x7FFF => self.cartridge.read8(addr),
-            0x8000..=0x9FFF => self.vram[addr as usize - 0x8000],
+            0x8000..=0x9FFF => self.ppu.read8(addr),
             0xA000..=0xBFFF => self.cartridge.read8(addr),
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF],
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF],
-            0xFE00..=0xFE9F => self.oam[addr as usize - 0xFE00],
+            0xFE00..=0xFE9F => self.ppu.read8(addr),
             0xFF00..=0xFF7F => {
                 match addr {
                     // TODO: Implement the rest of the IO registers.
@@ -157,9 +159,11 @@ impl Memory for Mmu {
                     // Timer Registers
                     0xFF04..=0xFF07 => self.timer.get(addr),
 
-                    // Stub LY, for testing.
-                    0xFF44 => 0x90,
+                    // PPU Registers
+                    0xFF40..=0xFF4B => self.ppu.read8(addr),
 
+                    // Stub LY, for testing.
+                    //0xFF44 => 0x90,
                     _ => self.io[addr as usize - 0xFF00],
                 }
             }
@@ -184,11 +188,11 @@ impl Memory for Mmu {
         match addr {
             0x0000..=0x3FFF => self.cartridge.write8(addr, val),
             0x4000..=0x7FFF => self.cartridge.write8(addr, val),
-            0x8000..=0x9FFF => self.vram[addr as usize - 0x8000] = val,
+            0x8000..=0x9FFF => self.ppu.write8(addr, val),
             0xA000..=0xBFFF => self.cartridge.write8(addr, val),
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF] = val,
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF] = val,
-            0xFE00..=0xFE9F => self.oam[addr as usize - 0xFE00] = val,
+            0xFE00..=0xFE9F => self.ppu.write8(addr, val),
             0xFF00..=0xFF7F => {
                 match addr {
                     //TODO: Implement the rest of the IO registers.
@@ -208,6 +212,10 @@ impl Memory for Mmu {
                     0xFF04..=0xFF07 => {
                         self.timer.set(addr, val);
                     }
+
+                    // PPU Registers
+                    0xFF40..=0xFF4B => self.ppu.write8(addr, val),
+
                     _ => self.io[addr as usize - 0xFF00] = val,
                 }
             }
@@ -238,14 +246,17 @@ impl Memory for Mmu {
     }
 
     fn cycle(&mut self, ticks: u32) -> u32 {
-        // TODO: Cycle the other components, gputicks, vramticks, etc
+        // TODO: Cycle the other components, APU?
 
         let cpu_ticks = ticks;
 
         // Cycle the timer.
         self.timer.cycle(cpu_ticks);
 
-        cpu_ticks
-        //gpu_ticks
+        // Cycle the PPU.
+        let gpu_ticks = self.ppu.cycle(cpu_ticks);
+
+        // Calculate total ticks from each subsystem cycle
+        cpu_ticks + gpu_ticks
     }
 }

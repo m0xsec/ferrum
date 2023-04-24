@@ -185,7 +185,7 @@ enum Mode {
 }
 
 /// PPU (Picture Processing Unit)
-struct Ppu {
+pub struct Ppu {
     /* Registers */
     /// 0xFF40 - LCDC (LCD Control) Register (R/W)
     control: LcdcFlags,
@@ -210,13 +210,13 @@ struct Ppu {
     dma: u8,
 
     /// 0xFF47 - BGP (BG Palette Data) Register (R/W)
-    bgp: u8,
+    bgp: Palette,
 
     /// 0xFF48 - OBP0 (Object Palette 0 Data) Register (R/W)
-    obp0: u8,
+    obp0: Palette,
 
     /// 0xFF49 - OBP1 (Object Palette 1 Data) Register (R/W)
-    obp1: u8,
+    obp1: Palette,
 
     /// 0xFF4A - WY (Window Y Position) Register (R/W)
     wy: u8,
@@ -243,9 +243,9 @@ impl Ppu {
             ly: 0,
             lyc: 0,
             dma: 0,
-            bgp: 0,
-            obp0: 0,
-            obp1: 0,
+            bgp: Palette::new(),
+            obp0: Palette::new(),
+            obp1: Palette::new(),
             wy: 0,
             wx: 0,
             vram: [0; 0x2000],
@@ -281,9 +281,9 @@ impl Memory for Ppu {
             0xFF44 => self.ly,
             0xFF45 => self.lyc,
             0xFF46 => self.dma,
-            0xFF47 => self.bgp,
-            0xFF48 => self.obp0,
-            0xFF49 => self.obp1,
+            0xFF47 => self.bgp.bits,
+            0xFF48 => self.obp0.bits,
+            0xFF49 => self.obp1.bits,
             0xFF4A => self.wy,
             0xFF4B => self.wx,
             _ => UNDEFINED_READ,
@@ -313,9 +313,9 @@ impl Memory for Ppu {
             0xFF44 => self.ly = val,
             0xFF45 => self.lyc = val,
             0xFF46 => self.dma = val,
-            0xFF47 => self.bgp = val,
-            0xFF48 => self.obp0 = val,
-            0xFF49 => self.obp1 = val,
+            0xFF47 => self.bgp.set_bits(val),
+            0xFF48 => self.obp0.set_bits(val),
+            0xFF49 => self.obp1.set_bits(val),
             0xFF4A => self.wy = val,
             0xFF4B => self.wx = val,
             _ => warn!("Invalid write to PPU: {:#06x} <- {:#04x}", addr, val),
@@ -332,6 +332,7 @@ impl Memory for Ppu {
     }
 
     fn cycle(&mut self, ticks: u32) -> u32 {
-        todo!()
+        // TODO: Handle actual drawing, etc.
+        VBLANK_CYCLES
     }
 }
