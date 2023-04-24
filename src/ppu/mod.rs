@@ -120,6 +120,20 @@ impl Stat {
             mode_flag: 0x00,
         }
     }
+
+    fn set_mode(&mut self, mode: Mode) {
+        self.mode_flag = mode as u8;
+    }
+
+    fn get_mode(&self) -> Mode {
+        match self.mode_flag {
+            0 => Mode::HBlank,
+            1 => Mode::VBlank,
+            2 => Mode::OamSearch,
+            3 => Mode::DataTransfer,
+            _ => panic!("Invalid mode flag"),
+        }
+    }
 }
 
 /// PPU (Picture Processing Unit)
