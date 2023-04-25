@@ -29,6 +29,20 @@ impl GameBoy {
         // TODO: Look at using cpal for audio output, spin up a thread to handle audio, etc.
         warn!("Audio is not implemented yet.");
     }
+
+    /// Color conversion from Gameboy palette to RGB888
+    fn color_convert(&self, color: u8) -> u32 {
+        match color {
+            // 0x01 = Light
+            0x01 => 0xC0C0C0,
+            // 0x02 = Dark
+            0x02 => 0x606060,
+            // 0x03 = On
+            0x03 => 0xFFFFFF,
+            // 0x00 = Off
+            _ => 0x000000,
+        }
+    }
 }
 impl GameBoy {
     /// Initialize Gameboy Hardware
@@ -103,7 +117,8 @@ impl GameBoy {
 
                 // Update window buffer
                 for (i, pixel) in window_buffer.iter_mut().enumerate() {
-                    *pixel = render_buffer[i] as u32;
+                    //*pixel = render_buffer[i] as u32;
+                    *pixel = self.color_convert(render_buffer[i]);
                 }
             }
 
