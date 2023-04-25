@@ -15,7 +15,9 @@ use crate::{
 };
 use bitflags::bitflags;
 use log::warn;
+use std::cmp::Ordering;
 use std::{cell::RefCell, rc::Rc};
+use tinyvec::*;
 
 /// The Gameboy outputs a 160x144 pixel LCD screen.
 pub const SCREEN_WIDTH: usize = 160;
@@ -33,8 +35,14 @@ const VBLANK_CYCLES: u32 = 114;
 /// The PPU always returned 0xFF for undefined reads.
 const UNDEFINED_READ: u8 = 0xFF;
 
+const BLACK: u32 = 0x00000000u32;
+const DGRAY: u32 = 0x00555555u32;
+const LGRAY: u32 = 0x00AAAAAAu32;
+const WHITE: u32 = 0x00FFFFFFu32;
+
 bitflags!(
     /// Sprite Attributes
+    #[derive(Default, Debug, Clone, Copy)]
     struct SpriteFlags: u8 {
         const UNUSED = 0b_0000_1111; // CGB Mode Only.
         const PALETTE     = 0b_0001_0000;
@@ -45,6 +53,7 @@ bitflags!(
 );
 
 /// Sprite (Object)
+#[derive(Default, Debug, Clone, Copy)]
 struct Sprite {
     /// Y Position
     y: u8,
@@ -63,18 +72,18 @@ struct Sprite {
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum Color {
-    Off = 0,
+    On = 0,
     Light = 1,
     Dark = 2,
-    On = 3,
+    Off = 3,
 }
 
 impl Color {
     fn from_u8(value: u8) -> Color {
         match value {
+            0 => Color::On,
             1 => Color::Light,
             2 => Color::Dark,
-            3 => Color::On,
             _ => Color::Off,
         }
     }
@@ -83,11 +92,21 @@ impl Color {
 impl From<Color> for u8 {
     fn from(val: Color) -> Self {
         match val {
-            Color::Off => 0,
+            Color::On => 0,
             Color::Light => 1,
             Color::Dark => 2,
-            Color::On => 3,
+            Color::Off => 3,
         }
+    }
+}
+
+pub fn pixel_to_color(pixel: u8) -> u32 {
+    match pixel {
+        3 => BLACK,
+        2 => DGRAY,
+        1 => LGRAY,
+        0 => WHITE,
+        _ => panic!("Invalid value in u8_to_grayscale"),
     }
 }
 
@@ -124,10 +143,10 @@ impl Palette {
         }
     }
     fn set_bits(&mut self, value: u8) {
-        self.off = Color::from_u8(value & 0x3);
+        self.on = Color::from_u8((value >> 0) & 0x3);
         self.light = Color::from_u8((value >> 2) & 0x3);
         self.dark = Color::from_u8((value >> 4) & 0x3);
-        self.on = Color::from_u8((value >> 6) & 0x3);
+        self.off = Color::from_u8((value >> 6) & 0x3);
         self.bits = value;
     }
 }
@@ -311,10 +330,176 @@ impl Ppu {
 
     /// Draw the current line to the video buffer
     fn draw_line(&mut self) {
-        // TODO: Draw background
-        // TODO: Draw window
-        // TODO: Draw sprites
-        warn!("Drawing line not implemented");
+        let slice_start = SCREEN_WIDTH * self.ly as usize;
+        let slice_end = SCREEN_WIDTH + slice_start;
+        let pixels = &mut self.buffer[slice_start..slice_end];
+        let mut bg_prio = [false; SCREEN_WIDTH];
+
+        if self.control.contains(LcdcFlags::BG_DISPLAY_ENABLE) {
+            let map_mask = if self.control.contains(LcdcFlags::BG_TILE_MAP_ADDRESS) {
+                0x1c00
+            } else {
+                0x1800
+            };
+
+            let y = self.ly.wrapping_add(self.scy);
+            let row = (y / 8) as usize;
+            for i in 0..SCREEN_WIDTH {
+                let x = (i as u8).wrapping_add(self.scx);
+                let col = (x / 8) as usize;
+
+                let tile_num = self.vram[(((row * 32 + col) | map_mask) & 0x1fff)] as usize;
+                let tile_num = if self.control.contains(LcdcFlags::BG_TILE_MAP_ADDRESS) {
+                    tile_num as usize
+                } else {
+                    128 + ((tile_num as i8 as i16) + 128) as usize
+                };
+
+                let line = ((y % 8) * 2) as usize;
+                let tile_mask = tile_num << 4;
+                let data1 = self.vram[(tile_mask | line) & 0x1fff];
+                let data2 = self.vram[(tile_mask | (line + 1)) & 0x1fff];
+
+                let bit = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
+
+                let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
+                let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
+                let color_value = color_h | color_l;
+                let raw_color = Color::from_u8(color_value);
+
+                let color = self.bgp.get(&raw_color);
+                bg_prio[i] = raw_color != Color::Off;
+                pixels[i] = color;
+            }
+        }
+        if self.control.contains(LcdcFlags::WINDOW_DISPLAY_ENABLE) && self.wy <= self.ly {
+            let map_mask = if self.control.contains(LcdcFlags::WINDOW_TILE_MAP_ADDRESS) {
+                0x1c00
+            } else {
+                0x1800
+            };
+            let window_x = self.wx.wrapping_sub(7);
+
+            let y = self.ly - self.wy;
+            let row = (y / 8) as usize;
+            for i in (window_x as usize)..SCREEN_WIDTH {
+                let mut x = (i as u8).wrapping_add(self.scx);
+                if x >= window_x {
+                    x = i as u8 - window_x;
+                }
+                let col = (x / 8) as usize;
+
+                let tile_num = self.vram[(((row * 32 + col) | map_mask) & 0x1fff)] as usize;
+                let tile_num = if self.control.contains(LcdcFlags::BG_TILE_MAP_ADDRESS) {
+                    tile_num as usize
+                } else {
+                    128 + ((tile_num as i8 as i16) + 128) as usize
+                };
+
+                let line = ((y % 8) * 2) as usize;
+                let tile_mask = tile_num << 4;
+                let data1 = self.vram[(tile_mask | line) & 0x1fff];
+                let data2 = self.vram[(tile_mask | (line + 1)) & 0x1fff];
+
+                let bit = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
+
+                let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
+                let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
+                let color_value = color_h | color_l;
+                let raw_color = Color::from_u8(color_value);
+
+                let color = self.bgp.get(&raw_color);
+                bg_prio[i] = raw_color != Color::Off;
+                pixels[i] = color;
+            }
+        }
+        if self.control.contains(LcdcFlags::OBJ_DISPLAY_ENABLE) {
+            let size = if self.control.contains(LcdcFlags::OBJ_SIZE) {
+                16
+            } else {
+                8
+            };
+
+            let current_line = self.ly;
+
+            let mut sprites_to_draw: ArrayVec<[(usize, Sprite); 10]> = self
+                .oam
+                .chunks(4)
+                .filter_map(|chunk| match chunk {
+                    &[y, x, tile_num, flags] => {
+                        let y = y.wrapping_sub(16);
+                        let x = x.wrapping_sub(8);
+                        let flags = SpriteFlags::from_bits_truncate(flags);
+                        if current_line.wrapping_sub(y) < size {
+                            Some(Sprite {
+                                y,
+                                x,
+                                tile: tile_num,
+                                attr: flags,
+                            })
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                })
+                .take(10)
+                .enumerate()
+                .collect();
+
+            sprites_to_draw.sort_by(|&(a_index, a), &(b_index, b)| {
+                match a.x.cmp(&b.x) {
+                    // If X coordinates are the same, use OAM index as priority (low index => draw last)
+                    Ordering::Equal => a_index.cmp(&b_index).reverse(),
+                    // Use X coordinate as priority (low X => draw last)
+                    other => other.reverse(),
+                }
+            });
+
+            for (_, sprite) in sprites_to_draw {
+                let palette = if sprite.attr.contains(SpriteFlags::PALETTE) {
+                    &self.obp1
+                } else {
+                    &self.obp0
+                };
+                let mut tile_num = sprite.tile as usize;
+                let mut line = if sprite.attr.contains(SpriteFlags::FLIPY) {
+                    size - current_line.wrapping_sub(sprite.y) - 1
+                } else {
+                    current_line.wrapping_sub(sprite.y)
+                };
+                if line >= 8 {
+                    tile_num += 1;
+                    line -= 8;
+                }
+                line *= 2;
+                let tile_mask = tile_num << 4;
+                let data1 = self.vram[(tile_mask | line as usize) & 0x1fff];
+                let data2 = self.vram[(tile_mask | (line + 1) as usize) & 0x1fff];
+
+                for x in (0..8).rev() {
+                    let bit = if sprite.attr.contains(SpriteFlags::FLIPX) {
+                        7 - x
+                    } else {
+                        x
+                    } as usize;
+
+                    let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
+                    let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
+                    let color_value = color_h | color_l;
+                    let raw_color = Color::from_u8(color_value);
+                    let color = palette.get(&raw_color);
+                    let target_x = sprite.x.wrapping_add(7 - x);
+                    if target_x < SCREEN_WIDTH as u8
+                        && raw_color != Color::Off
+                        && (!sprite.attr.contains(SpriteFlags::PRIORITY)
+                            || !bg_prio[target_x as usize])
+                    {
+                        pixels[target_x as usize] = color;
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 use crate::cpu;
 use crate::mmu;
+use crate::ppu::pixel_to_color;
+use crate::ppu::Color;
 use crate::ppu::ScreenBuffer;
 use crate::ppu::SCREEN_PIXELS;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -29,20 +31,6 @@ impl GameBoy {
         // TODO: Look at using cpal for audio output, spin up a thread to handle audio, etc.
         warn!("Audio is not implemented yet.");
     }
-
-    /// Color conversion from Gameboy palette to RGB888
-    fn color_convert(&self, color: u8) -> u32 {
-        match color {
-            // 0x01 = Light
-            0x01 => 0xC0C0C0,
-            // 0x02 = Dark
-            0x02 => 0x606060,
-            // 0x03 = On
-            0x03 => 0xFFFFFF,
-            // 0x00 = Off
-            _ => 0x000000,
-        }
-    }
 }
 impl GameBoy {
     /// Initialize Gameboy Hardware
@@ -66,7 +54,7 @@ impl GameBoy {
         self.init_audio();
 
         // Setup window for rendering
-        let render_scale = 4;
+        let render_scale = 2;
         let option = WindowOptions {
             resize: false,
             scale: match render_scale {
@@ -86,9 +74,10 @@ impl GameBoy {
             option,
         )
         .unwrap();
+        window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
         // Initialize window buffer
-        let mut window_buffer = vec![0x00; SCREEN_WIDTH * SCREEN_HEIGHT];
+        let mut window_buffer = vec![0x00; SCREEN_PIXELS];
         window
             .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
             .unwrap();
@@ -109,17 +98,17 @@ impl GameBoy {
             // Is the PPU ready to render?
             let updated = self.mmu.borrow_mut().ppu_updated();
             if updated {
-                let mut render_buffer = [0u8; SCREEN_PIXELS];
-                let ppu_buffer = *self.mmu.borrow_mut().ppu_get_buffer();
-                for i in 0..SCREEN_PIXELS {
-                    render_buffer[i] = ppu_buffer[i] as u8;
+                //println!("updated!");
+                //let mut render_buffer = [0u8; SCREEN_PIXELS];
+                //let ppu_buffer = *self.mmu.borrow_mut().ppu_get_buffer();
+                for (px, i) in self.mmu.borrow_mut().ppu_get_buffer().iter().enumerate() {
+                    window_buffer[px] = pixel_to_color(*i as u8);
+                    //println!("GB Color Hex: {:X}", i);
                 }
 
-                // Update window buffer
-                for (i, pixel) in window_buffer.iter_mut().enumerate() {
-                    //*pixel = render_buffer[i] as u32;
-                    *pixel = self.color_convert(render_buffer[i]);
-                }
+                window
+                    .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
+                    .unwrap();
             }
 
             // TODO: Check for PPU updates and render to window buffer.
@@ -131,10 +120,6 @@ impl GameBoy {
             /*for (i, pixel) in self.mmu.borrow().get_vram().iter().enumerate() {
                 window_buffer[i] = *pixel as u32;
             }*/
-
-            window
-                .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
-                .unwrap();
 
             // Handle keyboard input.
             // TODO: Handle Gameboy Joypad input.
