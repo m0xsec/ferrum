@@ -285,7 +285,7 @@ impl Ppu {
             oam: [0; 0xA0],
             if_,
             cycles: ACCESS_OAM_CYCLES,
-            updated: false,
+            updated: true,
             buffer: Box::new(SCREEN_EMPTY),
         }
     }
@@ -349,7 +349,7 @@ impl Ppu {
                 let col = (x / 8) as usize;
 
                 let tile_num = self.vram[(((row * 32 + col) | map_mask) & 0x1fff)] as usize;
-                let tile_num = if self.control.contains(LcdcFlags::BG_TILE_MAP_ADDRESS) {
+                let tile_num = if self.control.contains(LcdcFlags::BG_WINDOW_TILE_DATA) {
                     tile_num as usize
                 } else {
                     128 + ((tile_num as i8 as i16) + 128) as usize
@@ -362,14 +362,21 @@ impl Ppu {
 
                 let bit = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
 
-                let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
-                let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
-                let color_value = color_h | color_l;
+                //let color_l = (data2 << bit) >> 7;
+                //let color_h = (data1 << bit) >> 6;
+                //let color_value = color_h | color_l;
+                //let color_value = ((data2 >> bit) & 1) << 1 | ((data1 >> bit) & 1);
+                let color_value =
+                    ((data2 >> (7 - (x % 8))) & 1) << 1 | ((data1 >> (7 - (x % 8))) & 1);
+
                 let raw_color = Color::from_u8(color_value);
 
                 let color = self.bgp.get(&raw_color);
                 bg_prio[i] = raw_color != Color::Off;
                 pixels[i] = color;
+                if color_value != 0 {
+                    println!("{} {}", i, color_value)
+                };
             }
         }
         if self.control.contains(LcdcFlags::WINDOW_DISPLAY_ENABLE) && self.wy <= self.ly {
@@ -390,7 +397,7 @@ impl Ppu {
                 let col = (x / 8) as usize;
 
                 let tile_num = self.vram[(((row * 32 + col) | map_mask) & 0x1fff)] as usize;
-                let tile_num = if self.control.contains(LcdcFlags::BG_TILE_MAP_ADDRESS) {
+                let tile_num = if self.control.contains(LcdcFlags::BG_WINDOW_TILE_DATA) {
                     tile_num as usize
                 } else {
                     128 + ((tile_num as i8 as i16) + 128) as usize
@@ -402,15 +409,25 @@ impl Ppu {
                 let data2 = self.vram[(tile_mask | (line + 1)) & 0x1fff];
 
                 let bit = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
-
-                let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
-                let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
-                let color_value = color_h | color_l;
+                // (self >> bit) & Self::one()
+                /*let bit = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
+                let color_value = (data2.bit(bit) << 1) | data1.bit(bit);
+                let raw_color = Color::from_u8(color_value);
+                let color = self.bg_palette.get(&raw_color);
+                bg_prio[i] = raw_color != Color::Off;
+                pixels[i] = color; */
+                //let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
+                //let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
+                let color_value =
+                    ((data2 >> (7 - (x % 8))) & 1) << 1 | ((data1 >> (7 - (x % 8))) & 1);
                 let raw_color = Color::from_u8(color_value);
 
                 let color = self.bgp.get(&raw_color);
                 bg_prio[i] = raw_color != Color::Off;
                 pixels[i] = color;
+                if color_value != 0 {
+                    println!("{} {}", i, color_value)
+                };
             }
         }
         if self.control.contains(LcdcFlags::OBJ_DISPLAY_ENABLE) {
@@ -430,6 +447,7 @@ impl Ppu {
                         let y = y.wrapping_sub(16);
                         let x = x.wrapping_sub(8);
                         let flags = SpriteFlags::from_bits_truncate(flags);
+                        println!("sprite build");
                         if current_line.wrapping_sub(y) < size {
                             Some(Sprite {
                                 y,
@@ -484,9 +502,11 @@ impl Ppu {
                         x
                     } as usize;
 
-                    let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
-                    let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
-                    let color_value = color_h | color_l;
+                    //let color_l = if data2 & (0x80 >> bit) != 0 { 1 } else { 0 };
+                    //let color_h = if data1 & (0x80 >> bit) != 0 { 2 } else { 0 };
+                    //let color_value = color_h | color_l;
+                    let color_value =
+                        ((data2 >> (7 - (x % 8))) & 1) << 1 | ((data1 >> (7 - (x % 8))) & 1);
                     let raw_color = Color::from_u8(color_value);
                     let color = palette.get(&raw_color);
                     let target_x = sprite.x.wrapping_add(7 - x);
@@ -496,6 +516,9 @@ impl Ppu {
                             || !bg_prio[target_x as usize])
                     {
                         pixels[target_x as usize] = color;
+                        if color_value != 0 {
+                            println!("{} {}", target_x, color_value)
+                        };
                     }
                 }
             }
@@ -620,7 +643,7 @@ impl Memory for Ppu {
                 self.ly += 1;
                 if self.ly > 153 {
                     self.ly = 0;
-                    self.check_lyc();
+                    //self.check_lyc();
                     self.update_mode(Mode::AccessOAM);
                 } else {
                     self.cycles += VBLANK_CYCLES;
