@@ -1,7 +1,7 @@
 use crate::boot::BOOTROM;
 use crate::cartridge;
 use crate::cartridge::Cartridge;
-use crate::ppu::{Ppu, ScreenBuffer};
+use crate::ppu::Ppu;
 use crate::timer::Timer;
 
 use self::memory::Memory;
@@ -127,7 +127,7 @@ impl Mmu {
         result
     }
 
-    pub fn ppu_get_buffer(&mut self) -> &ScreenBuffer {
+    pub fn ppu_get_buffer(&mut self) -> &Vec<u32> {
         &self.ppu.buffer
     }
 }

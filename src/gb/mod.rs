@@ -1,8 +1,5 @@
 use crate::cpu;
 use crate::mmu;
-use crate::ppu::pixel_to_color;
-use crate::ppu::Color;
-use crate::ppu::ScreenBuffer;
 use crate::ppu::SCREEN_PIXELS;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use log::warn;
@@ -77,9 +74,12 @@ impl GameBoy {
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
         // Initialize window buffer
-        let mut window_buffer = vec![0x00; SCREEN_PIXELS];
         window
-            .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
+            .update_with_buffer(
+                self.mmu.borrow_mut().ppu_get_buffer().as_slice(),
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+            )
             .unwrap();
 
         // Emulation loop
@@ -93,38 +93,24 @@ impl GameBoy {
             while ticks < waitticks {
                 self.cpu.dump_registers();
                 ticks += self.cpu.cycle();
-            }
 
-            // Is the PPU ready to render?
-            let updated = self.mmu.borrow_mut().ppu_updated();
-            if updated {
-                //println!("updated!");
-                //let mut render_buffer = [0u8; SCREEN_PIXELS];
-                //let ppu_buffer = *self.mmu.borrow_mut().ppu_get_buffer();
-                for (px, i) in self.mmu.borrow_mut().ppu_get_buffer().iter().enumerate() {
-                    window_buffer[px] = pixel_to_color(*i as u8);
-                    //println!("GB Color Hex: {:X}", i);
+                // Is the PPU ready to render?
+                let updated = self.mmu.borrow_mut().ppu_updated();
+                if updated {
+                    window
+                        .update_with_buffer(
+                            self.mmu.borrow_mut().ppu_get_buffer().as_slice(),
+                            SCREEN_WIDTH,
+                            SCREEN_HEIGHT,
+                        )
+                        .unwrap();
                 }
 
-                window
-                    .update_with_buffer(window_buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
-                    .unwrap();
-            }
-
-            // TODO: Check for PPU updates and render to window buffer.
-            /*for (i, pixel) in window_buffer.iter_mut().enumerate() {
-                *pixel = if i % 8 == 0 { 0x00 } else { 0x55 * i as u32 };
-            }*/
-
-            // TEST: Iterate VRAM and update window buffer.
-            /*for (i, pixel) in self.mmu.borrow().get_vram().iter().enumerate() {
-                window_buffer[i] = *pixel as u32;
-            }*/
-
-            // Handle keyboard input.
-            // TODO: Handle Gameboy Joypad input.
-            if window.is_key_down(Key::Escape) {
-                break;
+                // Handle keyboard input.
+                // TODO: Handle Gameboy Joypad input.
+                if window.is_key_down(Key::Escape) {
+                    break;
+                }
             }
 
             // Maintain correct CPU speed.
