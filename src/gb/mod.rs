@@ -51,7 +51,7 @@ impl GameBoy {
         self.init_audio();
 
         // Setup window for rendering
-        let render_scale = 2;
+        let render_scale = 4;
         let option = WindowOptions {
             resize: false,
             scale: match render_scale {
@@ -93,24 +93,24 @@ impl GameBoy {
             while ticks < waitticks {
                 self.cpu.dump_registers();
                 ticks += self.cpu.cycle();
+            }
 
-                // Is the PPU ready to render?
-                let updated = self.mmu.borrow_mut().ppu_updated();
-                if updated {
-                    window
-                        .update_with_buffer(
-                            self.mmu.borrow_mut().ppu_get_buffer().as_slice(),
-                            SCREEN_WIDTH,
-                            SCREEN_HEIGHT,
-                        )
-                        .unwrap();
-                }
+            // Is the PPU ready to render?
+            let updated = self.mmu.borrow_mut().ppu_updated();
+            if updated {
+                window
+                    .update_with_buffer(
+                        self.mmu.borrow_mut().ppu_get_buffer().as_slice(),
+                        SCREEN_WIDTH,
+                        SCREEN_HEIGHT,
+                    )
+                    .unwrap();
+            }
 
-                // Handle keyboard input.
-                // TODO: Handle Gameboy Joypad input.
-                if window.is_key_down(Key::Escape) {
-                    break;
-                }
+            // Handle keyboard input.
+            // TODO: Handle Gameboy Joypad input.
+            if window.is_key_down(Key::Escape) {
+                break;
             }
 
             // Maintain correct CPU speed.
