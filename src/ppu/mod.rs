@@ -145,8 +145,17 @@ struct Sprite {
     /// The tile number of the sprite.
     tile_id: u8,
 
-    /// The attributes of the sprite.
+    /// The attributes of the sprite (Sprite Flags)
+    /// Bit 7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
+    /// Bit 6   Y flip          (0=Normal, 1=Vertically mirrored)
+    /// Bit 5   X flip          (0=Normal, 1=Horizontally mirrored)
+    /// Bit 4   Palette number  **DMG Only* (0=OBP0, 1=OBP1)
+    /// Bit 0-3 CGB Only
     attr: u8,
+    priority: bool,
+    y_flip: bool,
+    x_flip: bool,
+    palette: bool,
 
     /// The sprite size (determined by the LCDC.2 flag).
     size: SpriteSize,
@@ -169,11 +178,19 @@ impl Sprite {
                 tile.push(Tile::new(&[0; 16]));
             }
         }
+        let priority = data[3] & 0x80 == 0x80;
+        let y_flip = data[3] & 0x40 == 0x40;
+        let x_flip = data[3] & 0x20 == 0x20;
+        let palette = data[3] & 0x10 == 0x10;
         Self {
             x: data[0],
             y: data[1],
             tile_id: data[2],
             attr: data[3],
+            priority,
+            y_flip,
+            x_flip,
+            palette,
             size,
             tile,
         }
