@@ -84,7 +84,7 @@ impl Mmu {
         let cartridge = cartridge::new(rom_path);
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
         let timer = Timer::new(interrupt_flags.clone());
-        let ppu = Ppu::new(interrupt_flags.clone());
+        let ppu = Ppu::new(/*interrupt_flags.clone()*/);
 
         // Randomize WRAM and HRAM, per Pan docs
         // https://gbdev.io/pandocs/Power_Up_Sequence.html#common-remarks
@@ -122,9 +122,10 @@ impl Mmu {
     }
 
     pub fn ppu_updated(&mut self) -> bool {
-        let result = self.ppu.updated;
+        /*let result = self.ppu.updated;
         self.ppu.updated = false;
-        result
+        result*/
+        false
     }
 
     pub fn ppu_get_buffer(&mut self) -> &Vec<u32> {
