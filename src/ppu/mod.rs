@@ -1,5 +1,3 @@
-use std::default;
-
 use crate::mmu::memory::Memory;
 
 /// The Gameboy outputs a 160x144 pixel LCD screen.
@@ -22,6 +20,14 @@ const ACCESS_OAM_CYCLES: u32 = 21;
 const ACCESS_VRAM_CYCLES: u32 = 43;
 const HBLANK_CYCLES: u32 = 50;
 const VBLANK_CYCLES: u32 = 114;
+
+/// PPU also handles VRAM and OAM memory.
+pub const VRAM_START: u16 = 0x8000;
+pub const VRAM_END: u16 = 0x9FFF;
+pub const VRAM_SIZE: usize = 0x2000;
+pub const OAM_SIZE: usize = 0xA0;
+pub const OAM_START: u16 = 0xFE00;
+pub const OAM_END: u16 = 0xFE9F;
 
 /// The PPU always returned 0xFF for undefined reads.
 const UNDEFINED_READ: u8 = 0xFF;
@@ -197,6 +203,12 @@ pub struct Ppu {
     /// Each sprite can be 8x8 or 8x16 pixels (1x1 or 1x2 Tiles) depending on the sprite size flag (LCDC.2).
     sprites: Vec<Sprite>,
 
+    /// The PPU handles VRAM and OAM memory.
+    /// VRAM is used to store the background and window tiles.
+    /// OAM is used to store the sprite data.
+    vram: [u8; VRAM_SIZE],
+    oam: [u8; OAM_SIZE],
+
     /// Rendering buffer of the viewport.
     /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
     pub viewport_buffer: Vec<u32>,
@@ -212,6 +224,8 @@ impl Ppu {
             window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
             //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
             sprites: vec![],
+            vram: [0; VRAM_SIZE],
+            oam: [0; OAM_SIZE],
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
         }
     }
