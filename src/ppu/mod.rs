@@ -1,9 +1,21 @@
+use std::default;
+
 use crate::mmu::memory::Memory;
 
 /// The Gameboy outputs a 160x144 pixel LCD screen.
 pub const SCREEN_WIDTH: usize = 160;
 pub const SCREEN_HEIGHT: usize = 144;
 pub const SCREEN_PIXELS: usize = SCREEN_WIDTH * SCREEN_HEIGHT;
+
+/// The Gameboy has three layers for rendering. Background, Window, and Sprites.
+pub const BG_WIDTH: usize = 256;
+pub const BG_HEIGHT: usize = 256;
+pub const BG_PIXELS: usize = BG_WIDTH * BG_HEIGHT;
+pub const BG_TILES: usize = 32 * 32;
+pub const WIN_WIDTH: usize = 256;
+pub const WIN_HEIGHT: usize = 256;
+pub const WIN_PIXELS: usize = WIN_WIDTH * WIN_HEIGHT;
+pub const WIN_TILES: usize = 32 * 32;
 
 /// The PPU had varying cycles depending on the mode it was in.
 const ACCESS_OAM_CYCLES: u32 = 21;
@@ -47,7 +59,7 @@ impl Color {
     }
 
     /// Convert a Color to a u32
-    /// This is used to convert from Gameboy colors to u32 colors for rendering.
+    /// This is used to c onvert from Gameboy colors to u32 colors for rendering.
     fn to_u32(&self) -> u32 {
         match self {
             Color::White => WHITE,
@@ -72,6 +84,7 @@ impl Color {
 /// In memory, Tiles are stored as 16 bytes using the encoded method above.
 /// The first 2 bytes represent the first row of 8 pixels, the next 2 the second row, etc.
 /// https://pixelbits.16-b.it/GBEDG/ppu/#The-Concept-of-Tiles
+#[derive(Clone, Copy)]
 struct Tile {
     data: [u8; 16],
 }
@@ -95,16 +108,117 @@ impl Tile {
     }
 }
 
+/// Each sprite can be 8x8 or 8x16 pixels (1x1 tile or 1x2 tiles) depending on the sprite size flag (LCDC.2).
+/// NOTE: This is universal for all sprites in the loaded ROM.
+#[derive(Default, Clone, Copy)]
+enum SpriteSize {
+    /// 8x8 pixels (1x1 tile)
+    #[default]
+    Small,
+
+    /// 8x16 pixels (1x2 tiles)
+    Large,
+}
+
+/// The sprite layer is made up of 40 sprites that are stored in OAM.
+/// Each sprite can be 8x8 or 8x16 pixels (1x1 tile or 1x2 tiles) depending on the sprite size flag (LCDC.2).
+/// Sprites are rendered on top of the background and window layers.
+/// Sprites can be rendered behind the background and window layers by setting the priority flag (OAM.7).
+/// Sprites can be flipped horizontally and vertically.
+/// Sprites can be colored using one of the four palettes.
+/// Sprites can be hidden by setting the hidden flag (OAM.1).
+/// Sprites can be moved off screen by setting the x position to 0 or 160, or the y position to 0 or 144.
+#[derive(Clone)]
+struct Sprite {
+    /// The x position of the sprite.
+    x: u8,
+
+    /// The y position of the sprite.
+    y: u8,
+
+    /// The tile number of the sprite.
+    tile_id: u8,
+
+    /// The attributes of the sprite.
+    attr: u8,
+
+    /// The sprite size (determined by the LCDC.2 flag).
+    size: SpriteSize,
+
+    /// The tile data of the sprite.
+    tile: Vec<Tile>,
+}
+
+impl Sprite {
+    /// Create a new Sprite from a slice of 4 bytes.
+    /// Also using the sprite size flag (LCDC.2) to determine the sprite size.
+    fn new(data: &[u8], size: SpriteSize) -> Self {
+        let mut tile = Vec::new();
+        match size {
+            SpriteSize::Small => {
+                tile.push(Tile::new(&[0; 16]));
+            }
+            SpriteSize::Large => {
+                tile.push(Tile::new(&[0; 16]));
+                tile.push(Tile::new(&[0; 16]));
+            }
+        }
+        Self {
+            x: data[0],
+            y: data[1],
+            tile_id: data[2],
+            attr: data[3],
+            size,
+            tile,
+        }
+    }
+}
+
 /// PPU (Picture Processing Unit)
 pub struct Ppu {
-    pub buffer: Vec<u32>,
+    /// The PPU has 3 layers, Background, Window, and Sprites.
+    /// Each layer can be enabled or disabled.
+    bg_enabled: bool,
+    window_enabled: bool,
+    sprite_enabled: bool,
+
+    /// The background layer is made up of 32x32 tiles (256x256 pixels).
+    /// The Gameboy can only display 20x18 tiles (160x144 pixels) at a time (this is the viewport).
+    /// The offsets of the viewport are determined by the scroll registers (SCX, SCY).
+    bg_tiles: Vec<Tile>,
+
+    /// The window layer is made up of 32x32 tiles (256x256 pixels).
+    /// The Gameboy can only display 20x18 tiles (160x144 pixels) at a time (this is the viewport).
+    /// The offsets of the viewport are determined by the window position registers (WX, WY).
+    /// The window layer is rendered on top of the background layer, think of it like an overlay.
+    window_tiles: Vec<Tile>,
+
+    /// The sprite layer is made up of 40 sprites that are stored in OAM.
+    /// Each sprite can be 8x8 or 8x16 pixels (1x1 or 1x2 Tiles) depending on the sprite size flag (LCDC.2).
+    sprites: Vec<Sprite>,
+
+    /// Rendering buffer of the viewport.
+    /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
+    pub viewport_buffer: Vec<u32>,
 }
 
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            buffer: vec![BLACK; SCREEN_PIXELS],
+            bg_enabled: false,
+            window_enabled: false,
+            sprite_enabled: false,
+            bg_tiles: vec![Tile::new(&[0; 16]); BG_TILES],
+            window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
+            //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
+            sprites: vec![],
+            viewport_buffer: vec![BLACK; SCREEN_PIXELS],
         }
+    }
+
+    /// Initialize sprites vector once we know the sprite size.
+    fn init_sprites(&mut self, size: SpriteSize) {
+        self.sprites = vec![Sprite::new(&[0; 4], size); 40];
     }
 }
 

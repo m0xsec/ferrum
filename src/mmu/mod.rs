@@ -128,8 +128,8 @@ impl Mmu {
         false
     }
 
-    pub fn ppu_get_buffer(&mut self) -> &Vec<u32> {
-        &self.ppu.buffer
+    pub fn ppu_get_viewport(&mut self) -> &Vec<u32> {
+        &self.ppu.viewport_buffer
     }
 }
 

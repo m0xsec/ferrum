@@ -76,7 +76,7 @@ impl GameBoy {
         // Initialize window buffer
         window
             .update_with_buffer(
-                self.mmu.borrow_mut().ppu_get_buffer().as_slice(),
+                self.mmu.borrow_mut().ppu_get_viewport().as_slice(),
                 SCREEN_WIDTH,
                 SCREEN_HEIGHT,
             )
@@ -100,7 +100,7 @@ impl GameBoy {
             if updated {
                 window
                     .update_with_buffer(
-                        self.mmu.borrow_mut().ppu_get_buffer().as_slice(),
+                        self.mmu.borrow_mut().ppu_get_viewport().as_slice(),
                         SCREEN_WIDTH,
                         SCREEN_HEIGHT,
                     )
