@@ -566,6 +566,39 @@ impl Memory for Ppu {
     }
 
     fn cycle(&mut self, _: u32) -> u32 {
+        // Check if LCD is enabled
+        if !self.lcdc.lcd_display_enable() {
+            return 0;
+        }
+
+        // Which PPU mode are we in?
+        match self.mode {
+            PpuMode::HBlank => {
+                // Check if we need to request a STAT interrupt
+                if self.stat.mode_0_stat_interrupt_enable() {
+                    // TODO: Request STAT interrupt
+                }
+            }
+            PpuMode::VBlank => {
+                // Check if we need to request a STAT interrupt
+                if self.stat.mode_1_stat_interrupt_enable() {
+                    // TODO: Request STAT interrupt
+                }
+            }
+            PpuMode::OamScan => {
+                // Check if we need to request a STAT interrupt
+                if self.stat.mode_2_stat_interrupt_enable() {
+                    // TODO: Request STAT interrupt
+                }
+            }
+            PpuMode::Drawing => {
+                // TODO: Draw a scanline
+            }
+        }
+
+        // Update PPU mode
+        // TODO: Update PPU mode
+
         // Update STAT register
         let ppu_mode = self.mode;
         let ppu_ly = self.ly;
