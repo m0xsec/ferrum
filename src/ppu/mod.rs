@@ -1,5 +1,8 @@
 use crate::mmu::memory::Memory;
 
+// TODO: Look at doing Pixel FIFO - Rendering one line at a time is fine in most cases for now.
+// Only a few games actually require pixel FIFO.
+
 /// The Gameboy outputs a 160x144 pixel LCD screen.
 pub const SCREEN_WIDTH: usize = 160;
 pub const SCREEN_HEIGHT: usize = 144;
@@ -239,6 +242,104 @@ enum PpuMode {
     Drawing,
 }
 
+/// LCD Control Register (LCDC - $FF40)
+/// Bit 7  LCD Display Enable
+///     Setting this bit to 0 disables the PPU entirely. The screen is turned off.
+///
+/// Bit 6  Window Tile Map Select
+///     If set to 1, the Window will use the background map located at $9C00-$9FFF. Otherwise, it uses $9800-$9BFF.
+///
+/// Bit 5  Window Display Enable
+///     Setting this bit to 0 hides the window layer entirely.
+///
+/// Bit 4  Tile Data Select
+///     If set to 1, fetching Tile Data uses the 8000 method. Otherwise, the 8800 method is used.
+///
+/// Bit 3  BG Tile Map Select
+///     If set to 1, the Background will use the background map located at $9C00-$9FFF. Otherwise, it uses $9800-$9BFF.
+///
+/// Bit 2  Sprite Size
+///     If set to 1, sprites are displayed as 1x2 Tile (8x16 pixel) object. Otherwise, they're 1x1 Tile.
+///
+/// Bit 1  Sprite Enable
+///     Sprites are only drawn to screen if this bit is set to 1.
+///
+/// Bit 0  BG/Window Enable
+///     If this bit is set to 0, neither Background nor Window tiles are drawn. Sprites are unaffected
+struct Lcdc {
+    data: u8,
+}
+
+impl Lcdc {
+    fn new() -> Self {
+        Self { data: 0 }
+    }
+
+    fn set(&mut self, data: u8) {
+        self.data = data;
+    }
+
+    /// LCDC.7 - LCD Display Enable
+    /// This bit controls whether or not the PPU is active at all.
+    /// The PPU only operates while this bit is set to 1.
+    /// As soon as it is set to 0 the screen goes blank and the PPU stops all operation.
+    /// The PPU also undergoes a “reset”.
+    fn lcd_display_enable(&self) -> bool {
+        self.data & (1 << 7) != 0
+    }
+
+    /// LCDC.6 - Window Tile Map Select
+    /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Window layer.
+    /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
+    fn window_tile_map_select(&self) -> bool {
+        self.data * (1 << 6) != 0
+    }
+
+    /// LCDC.5 - Window Display Enable
+    /// This bit controls whether or not the Window layer is rendered at all.
+    /// If it is set to 0, everything Window-related can be ignored, as it is not rendered.
+    /// Otherwise the Window renders as normal.
+    fn window_display_enable(&self) -> bool {
+        self.data & (1 << 5) != 0
+    }
+
+    /// LCDC.4 - Tile Data Select
+    /// This bit determines which addressing mode to use for fetching Tile Data.
+    /// If it is set to 1, the 8000 method is used. Otherwise, the 8800 method is used.
+    fn tile_data_select(&self) -> bool {
+        self.data * (1 << 4) != 0
+    }
+
+    /// LCDC.3 - BG Tile Map Select
+    /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Background layer.
+    /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
+    fn bg_tile_map_select(&self) -> bool {
+        self.data & (1 << 3) != 0
+    }
+
+    /// LCDC.2 - Sprite Size
+    /// As mentioned in the description of sprites above, there is a certain option which can enable “Tall Sprite Mode”.
+    /// Setting this bit to 1 does so. In this mode, each sprite consists of two tiles on top of each other rather than one.
+    fn sprite_size(&self) -> bool {
+        self.data & (1 << 2) != 0
+    }
+
+    /// LCDC.1 - Sprite Enable
+    /// This bit controls whether or not sprites are rendered at all.
+    /// Setting this bit to 0 hides all sprites, otherwise they are rendered as normal.
+    fn sprite_enable(&self) -> bool {
+        self.data & (1 << 1) != 0
+    }
+
+    /// LCDC.0 - BG/Window Enable
+    /// This bit controls whether or not Background and Window tiles are drawn.
+    /// If it is set to 0, no Background or Window tiles are drawn and all pixels are drawn as white (Color 0).
+    /// The only exception to this are sprites, as they are unaffected.
+    fn bg_window_enable(&self) -> bool {
+        self.data & (1 << 0) != 0
+    }
+}
+
 /// PPU (Picture Processing Unit)
 pub struct Ppu {
     /// The PPU has 3 layers, Background, Window, and Sprites.
@@ -272,6 +373,9 @@ pub struct Ppu {
     /// The current PPU Mode
     mode: PpuMode,
 
+    /// LCD Control Register (LCDC)
+    lcdc: Lcdc,
+
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
     /// OAM is used to store the sprite data.
@@ -296,6 +400,7 @@ impl Ppu {
             background_map: vec![0; BG_MAP],
             window_map: vec![0; WIN_MAP],
             mode: PpuMode::OamScan,
+            lcdc: Lcdc::new(),
             vram: [0; VRAM_SIZE],
             oam: [0; OAM_SIZE],
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
