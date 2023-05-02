@@ -10,10 +10,12 @@ pub const BG_WIDTH: usize = 256;
 pub const BG_HEIGHT: usize = 256;
 pub const BG_PIXELS: usize = BG_WIDTH * BG_HEIGHT;
 pub const BG_TILES: usize = 32 * 32;
+pub const BG_MAP: usize = 32 * 32;
 pub const WIN_WIDTH: usize = 256;
 pub const WIN_HEIGHT: usize = 256;
 pub const WIN_PIXELS: usize = WIN_WIDTH * WIN_HEIGHT;
 pub const WIN_TILES: usize = 32 * 32;
+pub const WIN_MAP: usize = 32 * 32;
 
 /// The PPU had varying cycles depending on the mode it was in.
 const ACCESS_OAM_CYCLES: u32 = 21;
@@ -65,7 +67,7 @@ impl Color {
     }
 
     /// Convert a Color to a u32
-    /// This is used to c onvert from Gameboy colors to u32 colors for rendering.
+    /// This is used to convert from Gameboy colors to u32 colors for rendering.
     fn to_u32(&self) -> u32 {
         match self {
             Color::White => WHITE,
@@ -197,6 +199,46 @@ impl Sprite {
     }
 }
 
+/// During a scanline, the PPU enters multiple different modes.
+/// There are 4 modes, each with a specific function.
+enum PpuMode {
+    /// Mode 0 - H-Blank
+    /// This mode takes up the remainder of the scanline after the Drawing Mode finishes.
+    /// This is more or less “padding” the duration of the scanline to a total of 456 T-Cycles.
+    /// The PPU effectively pauses during this mode.
+    HBlank,
+
+    /// Mode 1 - V-Blank
+    /// This mode is similar to H-Blank, in that it the PPU does not render to the LCD during its duration.
+    /// However, instead of taking place at the end of every scanline, it is a much longer period at the
+    /// end of every frame.
+    ///
+    /// As the Gameboy has a vertical resolution of 144 pixels, it would be expected that the amount of
+    /// scanlines the PPU handles would be equal - 144 scanlines. However, this is not the case.
+    /// In reality there are 154 scanlines, the 10 last of which being “pseudo-scanlines” during which
+    /// no pixels are drawn as the PPU is in the V-Blank state during their duration.
+    /// A V-Blank scanline takes the same amount of time as any other scanline - 456 T-Cycles.
+    VBlank,
+
+    /// Mode 2 - OAM Scan
+    /// This mode is entered at the start of every scanline (except for V-Blank) before pixels are actually drawn to the screen.
+    /// During this mode the PPU searches OAM memory for sprites that should be rendered on the current scanline and stores them in a buffer.
+    /// This procedure takes a total amount of 80 T-Cycles, meaning that the PPU checks a new OAM entry every 2 T-Cycles.
+    ///
+    /// A sprite is only added to the buffer if all of the following conditions apply:
+    ///     * Sprite X-Position must be greater than 0
+    ///     * LY + 16 must be greater than or equal to Sprite Y-Position
+    ///     * LY + 16 must be less than Sprite Y-Position + Sprite Height (8 in Normal Mode, 16 in Tall-Sprite-Mode)
+    ///     * The amount of sprites already stored in the OAM Buffer must be less than 10
+    OamScan,
+
+    /// Mode 3 - Drawing
+    /// The Drawing Mode is where the PPU transfers pixels to the LCD.
+    /// The duration of this mode changes depending on multiple variables,
+    /// such as background scrolling, the amount of sprites on the scanline, whether or not the window should be rendered, etc.
+    Drawing,
+}
+
 /// PPU (Picture Processing Unit)
 pub struct Ppu {
     /// The PPU has 3 layers, Background, Window, and Sprites.
@@ -220,6 +262,16 @@ pub struct Ppu {
     /// Each sprite can be 8x8 or 8x16 pixels (1x1 or 1x2 Tiles) depending on the sprite size flag (LCDC.2).
     sprites: Vec<Sprite>,
 
+    /// Background Maps
+    /// These keep track of the order tiles should be rendered in for the background and window layers.
+    /// The VRAM sections $9800-$9BFF and $9C00-$9FFF each contain one of these background maps.
+    /// The background map is made up of 32x32 bytes, representing tile numbers, organized row by row.
+    background_map: Vec<u8>,
+    window_map: Vec<u8>,
+
+    /// The current PPU Mode
+    mode: PpuMode,
+
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
     /// OAM is used to store the sprite data.
@@ -241,6 +293,9 @@ impl Ppu {
             window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
             //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
             sprites: vec![],
+            background_map: vec![0; BG_MAP],
+            window_map: vec![0; WIN_MAP],
+            mode: PpuMode::OamScan,
             vram: [0; VRAM_SIZE],
             oam: [0; OAM_SIZE],
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
