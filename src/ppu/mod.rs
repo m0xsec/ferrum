@@ -204,6 +204,7 @@ impl Sprite {
 
 /// During a scanline, the PPU enters multiple different modes.
 /// There are 4 modes, each with a specific function.
+#[derive(Clone, Copy)]
 enum PpuMode {
     /// Mode 0 - H-Blank
     /// This mode takes up the remainder of the scanline after the Drawing Mode finishes.
@@ -272,7 +273,7 @@ struct Lcdc {
 
 impl Lcdc {
     fn new() -> Self {
-        Self { data: 0 }
+        Self { data: 0x00 }
     }
 
     fn set(&mut self, data: u8) {
@@ -340,6 +341,124 @@ impl Lcdc {
     }
 }
 
+/// LCD Status Register (STAT - $FF41)
+/// Bit 7   Unused (Always returns 1).
+///
+/// Bit 6   LYC=LY STAT Interrupt Enable
+///     Setting this bit to 1 enables the "LYC=LY condition" to trigger a STAT interrupt.
+///
+/// Bit 5   Mode 2 STAT Interrupt Enable
+///     Setting this bit to 1 enables the "mode 2 condition" to trigger a STAT interrupt.
+///
+/// Bit 4   Mode 1 STAT Interrupt Enable
+///    Setting this bit to 1 enables the "mode 1 condition" to trigger a STAT interrupt.
+///
+/// Bit 3   Mode 0 STAT Interrupt Enable
+///    Setting this bit to 1 enables the "mode 0 condition" to trigger a STAT interrupt.
+///
+/// Bit 2   Coincidence Flag
+///    This bit is set by the PPU if the value of the LY register is equal to that of the LYC register.
+///
+/// Bit 1-0 PPU Mode
+///    These two bits are set by the PPU depending on which mode it is in.
+///        * 0 : H-Blank
+///        * 1 : V-Blank
+///        * 2 : OAM Scan
+///        * 3 : Drawing
+struct Stat {
+    data: u8,
+}
+
+impl Stat {
+    fn new() -> Self {
+        Self { data: 0x00 }
+    }
+
+    fn set(&mut self, data: u8) {
+        self.data = data;
+    }
+
+    /// Update the STAT register based on the current state of the PPU.
+    fn update(&mut self, ppu_mode: PpuMode, ppu_ly: u8, ppu_lyc: u8) {
+        let mut data = self.data;
+
+        // Bit 2 - Coincidence Flag
+        // This bit is set by the PPU if the value of the LY register is equal to that of the LYC register.
+        if ppu_ly == ppu_lyc {
+            data |= 1 << 2;
+        } else {
+            data &= !(1 << 2);
+        }
+
+        // Bit 1-0 - PPU Mode
+        // These two bits are set by the PPU depending on which mode it is in.
+        // 0 : H-Blank
+        // 1 : V-Blank
+        // 2 : OAM Scan
+        // 3 : Drawing
+        match ppu_mode {
+            PpuMode::HBlank => {
+                data &= !(1 << 1);
+                data &= !(1 << 0);
+            }
+            PpuMode::VBlank => {
+                data &= !(1 << 1);
+                data |= 1 << 0;
+            }
+            PpuMode::OamScan => {
+                data |= 1 << 1;
+                data &= !(1 << 0);
+            }
+            PpuMode::Drawing => {
+                data |= 1 << 1;
+                data |= 1 << 0;
+            }
+        }
+
+        self.data = data;
+    }
+
+    /// STAT.6 - LYC=LY STAT Interrupt Enable
+    /// Setting this bit to 1 enables the "LYC=LY condition" to trigger a STAT interrupt.
+    fn lyc_ly_stat_interrupt_enable(&self) -> bool {
+        self.data & (1 << 6) != 0
+    }
+
+    /// STAT.5 - Mode 2 STAT Interrupt Enable
+    /// Setting this bit to 1 enables the "mode 2 condition" to trigger a STAT interrupt.
+    fn mode_2_stat_interrupt_enable(&self) -> bool {
+        self.data & (1 << 5) != 0
+    }
+
+    /// STAT.4 - Mode 1 STAT Interrupt Enable
+    /// Setting this bit to 1 enables the "mode 1 condition" to trigger a STAT interrupt.
+    fn mode_1_stat_interrupt_enable(&self) -> bool {
+        self.data & (1 << 4) != 0
+    }
+
+    /// STAT.3 - Mode 0 STAT Interrupt Enable
+    /// Setting this bit to 1 enables the "mode 0 condition" to trigger a STAT interrupt.
+    fn mode_0_stat_interrupt_enable(&self) -> bool {
+        self.data & (1 << 3) != 0
+    }
+
+    /// STAT.2 - Coincidence Flag
+    /// This bit is set by the PPU if the value of the LY register is equal to that of the LYC register.
+    fn coincidence_flag(&self) -> bool {
+        self.data & (1 << 2) != 0
+    }
+
+    /// STAT.1-0 - PPU Mode
+    /// These two bits are set by the PPU depending on which mode it is in.
+    ///     * 0 : H-Blank
+    ///     * 1 : V-Blank
+    ///     * 2 : OAM Scan
+    ///     * 3 : Drawing
+    fn ppu_mode(&self) -> u8 {
+        self.data & 0x03
+    }
+}
+
 /// PPU (Picture Processing Unit)
 pub struct Ppu {
     /// The PPU has 3 layers, Background, Window, and Sprites.
@@ -376,6 +495,20 @@ pub struct Ppu {
     /// LCD Control Register (LCDC)
     lcdc: Lcdc,
 
+    /// LCD Status Register (STAT)
+    stat: Stat,
+
+    /// LY Register - LCDC Y-Coordinate - ($FF44)
+    /// Indicates the current scanline (0-153).
+    /// Values 144-153 indicate the V-Blank period.
+    ly: u8,
+
+    /// LYC Register - LY Compare - ($FF45)
+    /// The Game Boy constantly compares the value of the LYC and LY registers.
+    /// When both values are identical, the “LYC=LY” flag in the STAT register is set
+    /// and (if enabled) a STAT interrupt is requested.
+    lyc: u8,
+
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
     /// OAM is used to store the sprite data.
@@ -401,6 +534,9 @@ impl Ppu {
             window_map: vec![0; WIN_MAP],
             mode: PpuMode::OamScan,
             lcdc: Lcdc::new(),
+            stat: Stat::new(),
+            ly: 0x00,
+            lyc: 0x00,
             vram: [0; VRAM_SIZE],
             oam: [0; OAM_SIZE],
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
@@ -430,6 +566,12 @@ impl Memory for Ppu {
     }
 
     fn cycle(&mut self, _: u32) -> u32 {
+        // Update STAT register
+        let ppu_mode = self.mode;
+        let ppu_ly = self.ly;
+        let ppu_lyc = self.lyc;
+        self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
+
         todo!("PPU is a WIP, plz try again soon <3");
     }
 }
