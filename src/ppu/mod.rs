@@ -1,6 +1,10 @@
+use std::{cell::RefCell, rc::Rc};
+
 use log::warn;
 
 use crate::mmu::memory::Memory;
+
+use self::fetcher::Fetcher;
 
 mod fetcher;
 mod fifo;
@@ -517,6 +521,9 @@ pub struct Ppu {
     /// and (if enabled) a STAT interrupt is requested.
     lyc: u8,
 
+    /// Pixel FIFO Fetcher
+    fetcher: Fetcher,
+
     /// Keep track of the number of ticks for the current line.
     ticks: u32,
 
@@ -526,8 +533,8 @@ pub struct Ppu {
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
     /// OAM is used to store the sprite data.
-    vram: [u8; VRAM_SIZE],
-    oam: [u8; OAM_SIZE],
+    vram: Rc<RefCell<[u8; VRAM_SIZE]>>,
+    oam: Rc<RefCell<[u8; OAM_SIZE]>>,
 
     /// Rendering buffer of the viewport.
     /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
@@ -536,6 +543,9 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new() -> Self {
+        let mut vram = Rc::new(RefCell::new([0; VRAM_SIZE]));
+        let mut oam = Rc::new(RefCell::new([0; OAM_SIZE]));
+        let fetcher = Fetcher::new(vram.clone(), oam.clone());
         Self {
             bg_enabled: false,
             window_enabled: false,
@@ -552,10 +562,11 @@ impl Ppu {
             stat: Stat::new(),
             ly: 0x00,
             lyc: 0x00,
+            fetcher,
             ticks: 0,
             x: 0,
-            vram: [0; VRAM_SIZE],
-            oam: [0; OAM_SIZE],
+            vram,
+            oam,
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
         }
     }
@@ -569,8 +580,8 @@ impl Ppu {
 impl Memory for Ppu {
     fn read8(&self, addr: u16) -> u8 {
         match addr {
-            0x8000..=0x9FFF => self.vram[(addr - 0x8000) as usize],
-            0xFE00..=0xFE9F => self.oam[(addr - 0xFE00) as usize],
+            0x8000..=0x9FFF => self.vram.borrow()[(addr - 0x8000) as usize],
+            0xFE00..=0xFE9F => self.oam.borrow()[(addr - 0xFE00) as usize],
             0xFF40 => self.lcdc.data,
             0xFF44 => self.ly,
             _ => UNDEFINED_READ,
@@ -581,11 +592,11 @@ impl Memory for Ppu {
         match addr {
             0x8000..=0x9FFF => {
                 // VRAM
-                self.vram[(addr - 0x8000) as usize] = val;
+                self.vram.borrow_mut()[(addr - 0x8000) as usize] = val;
             }
             0xFE00..=0xFE9F => {
                 // OAM
-                self.oam[(addr - 0xFE00) as usize] = val;
+                self.oam.borrow_mut()[(addr - 0xFE00) as usize] = val;
             }
             0xFF40 => {
                 self.lcdc.set(val);

@@ -11,7 +11,7 @@ enum FetcherState {
 }
 
 /// Pixel Fetcher reads the tile data from the VRAM and stores it in the Pixel FIFO.
-struct Fetcher {
+pub struct Fetcher {
     /// Pixel FIFO.
     fifo: Fifo,
 
