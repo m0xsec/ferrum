@@ -1,5 +1,6 @@
 use crate::cpu;
 use crate::mmu;
+use crate::ppu::Ppu;
 use crate::ppu::SCREEN_PIXELS;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use log::warn;
@@ -74,12 +75,9 @@ impl GameBoy {
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
         // Initialize window buffer
+        let mut buffer: Vec<u32> = vec![0; SCREEN_PIXELS];
         window
-            .update_with_buffer(
-                self.mmu.borrow_mut().ppu_get_viewport().as_slice(),
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT,
-            )
+            .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
             .unwrap();
 
         // Emulation loop
@@ -98,12 +96,17 @@ impl GameBoy {
             // Is the PPU ready to render?
             let updated = self.mmu.borrow_mut().ppu_updated();
             if updated {
+                // Update window buffer
+                let viewport = self.mmu.borrow_mut().ppu_get_viewport().clone();
+                for y in 0..SCREEN_HEIGHT {
+                    for x in 0..SCREEN_WIDTH {
+                        let pixel = viewport[y][x];
+                        buffer[y * SCREEN_WIDTH + x] = pixel;
+                    }
+                }
+
                 window
-                    .update_with_buffer(
-                        self.mmu.borrow_mut().ppu_get_viewport().as_slice(),
-                        SCREEN_WIDTH,
-                        SCREEN_HEIGHT,
-                    )
+                    .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
                     .unwrap();
             }
 

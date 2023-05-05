@@ -13,7 +13,7 @@ enum FetcherState {
 /// Pixel Fetcher reads the tile data from the VRAM and stores it in the Pixel FIFO.
 pub struct Fetcher {
     /// Pixel FIFO.
-    fifo: Fifo,
+    pub fifo: Fifo,
 
     /// Reference to VRAM.
     vram: Rc<RefCell<[u8; VRAM_SIZE]>>,
@@ -91,8 +91,8 @@ impl Fetcher {
                 // Read the tile's number from the background map. This will be used
                 // in the next states to find the address where the tile's actual pixel
                 // data is stored in memory.
-                self.tile_id =
-                    self.vram.borrow()[self.map_addr as usize + self.tile_index as usize];
+                self.tile_id = self.vram.borrow()
+                    [(self.map_addr as usize + self.tile_index as usize) - 0x8000];
 
                 self.state = FetcherState::ReadTileData0;
             }
@@ -139,7 +139,7 @@ impl Fetcher {
 
         // Finally, read the first or second byte of graphical data depending on
         // what state we're in.
-        let pixel_data = self.vram.borrow()[addr as usize + bit_plane as usize];
+        let pixel_data = self.vram.borrow()[(addr as usize + bit_plane as usize) - 0x8000];
         for bit_pos in 0..8 {
             // Separate each bit fom the data byte we just read. Each of these bits
             // is half of a pixel's color value.

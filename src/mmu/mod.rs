@@ -125,10 +125,10 @@ impl Mmu {
         /*let result = self.ppu.updated;
         self.ppu.updated = false;
         result*/
-        false
+        true
     }
 
-    pub fn ppu_get_viewport(&mut self) -> &Vec<u32> {
+    pub fn ppu_get_viewport(&mut self) -> &Vec<Vec<u32>> {
         &self.ppu.viewport_buffer
     }
 }
