@@ -1,4 +1,9 @@
+use log::warn;
+
 use crate::mmu::memory::Memory;
+
+mod fetcher;
+mod fifo;
 
 // TODO: Look at doing Pixel FIFO - Rendering one line at a time is fine in most cases for now.
 // Only a few games actually require pixel FIFO.
@@ -467,6 +472,9 @@ pub struct Ppu {
     window_enabled: bool,
     sprite_enabled: bool,
 
+    /// Is the disable enabled? Use this to track LCD on/off state.
+    ldc_on: bool,
+
     /// The background layer is made up of 32x32 tiles (256x256 pixels).
     /// The Gameboy can only display 20x18 tiles (160x144 pixels) at a time (this is the viewport).
     /// The offsets of the viewport are determined by the scroll registers (SCX, SCY).
@@ -509,6 +517,12 @@ pub struct Ppu {
     /// and (if enabled) a STAT interrupt is requested.
     lyc: u8,
 
+    /// Keep track of the number of ticks for the current line.
+    ticks: u32,
+
+    /// Amount of pixels already rendered for the current line.
+    x: u8,
+
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
     /// OAM is used to store the sprite data.
@@ -526,6 +540,7 @@ impl Ppu {
             bg_enabled: false,
             window_enabled: false,
             sprite_enabled: false,
+            ldc_on: false,
             bg_tiles: vec![Tile::new(&[0; 16]); BG_TILES],
             window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
             //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
@@ -537,6 +552,8 @@ impl Ppu {
             stat: Stat::new(),
             ly: 0x00,
             lyc: 0x00,
+            ticks: 0,
+            x: 0,
             vram: [0; VRAM_SIZE],
             oam: [0; OAM_SIZE],
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
@@ -551,10 +568,25 @@ impl Ppu {
 
 impl Memory for Ppu {
     fn read8(&self, addr: u16) -> u8 {
-        0xFF
+        match addr {
+            0xFF40 => self.lcdc.data,
+            0xFF44 => self.ly,
+            _ => UNDEFINED_READ,
+        }
     }
 
-    fn write8(&mut self, addr: u16, val: u8) {}
+    fn write8(&mut self, addr: u16, val: u8) {
+        match addr {
+            0xFF40 => {
+                self.lcdc.set(val);
+            }
+            0xFF44 => {
+                //self.ly = 0;
+                warn!("Ignoring write to LY register, as this is read-only.");
+            }
+            _ => warn!("Ignoring write to PPU register {:04X}", addr),
+        }
+    }
 
     fn read16(&self, addr: u16) -> u16 {
         u16::from(self.read8(addr)) | (u16::from(self.read8(addr + 1)) << 8)
@@ -567,32 +599,59 @@ impl Memory for Ppu {
 
     fn cycle(&mut self, _: u32) -> u32 {
         // Check if LCD is enabled
-        if !self.lcdc.lcd_display_enable() {
+        if !self.ldc_on {
+            if !self.lcdc.lcd_display_enable() {
+                return 0;
+            } else {
+                self.ldc_on = true;
+                self.mode = PpuMode::OamScan;
+            }
+        } else if !self.lcdc.lcd_display_enable() {
+            // Turn LDC off and reset PPU
+            self.ldc_on = false;
+            self.ly = 0;
+            self.x = 0;
             return 0;
         }
+
+        // Since the screen it on, keep counting ticks.
+        self.ticks += 1;
 
         // Which PPU mode are we in?
         match self.mode {
             PpuMode::HBlank => {
+                // TODO: Wait, then change to OAM Scan mode for next line, or VBlank if last line.
+                if self.ly == 144 {
+                    // TODO: Change to VBlank mode
+                } else {
+                    // TODO: Change to OAM Scan mode
+                }
+
                 // Check if we need to request a STAT interrupt
                 if self.stat.mode_0_stat_interrupt_enable() {
                     // TODO: Request STAT interrupt
                 }
             }
             PpuMode::VBlank => {
+                // TODO: Wait, then change to OAM Scan for top line.
+
                 // Check if we need to request a STAT interrupt
                 if self.stat.mode_1_stat_interrupt_enable() {
                     // TODO: Request STAT interrupt
                 }
             }
             PpuMode::OamScan => {
+                // TODO: Collect sprite data here
+                // TODO: Change to Drawing mode
+
                 // Check if we need to request a STAT interrupt
                 if self.stat.mode_2_stat_interrupt_enable() {
                     // TODO: Request STAT interrupt
                 }
             }
             PpuMode::Drawing => {
-                // TODO: Draw a scanline
+                // TODO: Draw a scanline (push pixel data to viewport buffer)
+                // TODO: Change to HBlank mode
             }
         }
 
