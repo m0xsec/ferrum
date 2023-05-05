@@ -569,6 +569,8 @@ impl Ppu {
 impl Memory for Ppu {
     fn read8(&self, addr: u16) -> u8 {
         match addr {
+            0x8000..=0x9FFF => self.vram[(addr - 0x8000) as usize],
+            0xFE00..=0xFE9F => self.oam[(addr - 0xFE00) as usize],
             0xFF40 => self.lcdc.data,
             0xFF44 => self.ly,
             _ => UNDEFINED_READ,
@@ -577,6 +579,14 @@ impl Memory for Ppu {
 
     fn write8(&mut self, addr: u16, val: u8) {
         match addr {
+            0x8000..=0x9FFF => {
+                // VRAM
+                self.vram[(addr - 0x8000) as usize] = val;
+            }
+            0xFE00..=0xFE9F => {
+                // OAM
+                self.oam[(addr - 0xFE00) as usize] = val;
+            }
             0xFF40 => {
                 self.lcdc.set(val);
             }

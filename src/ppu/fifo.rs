@@ -1,7 +1,7 @@
 /// FIFO (First In First Out) queue for storing pixel data.
 /// This will be used for shifting pixel data out to the LCD.
 /// This data structure is a fixed size.
-struct Fifo {
+pub struct Fifo {
     /// Array of values within the FIFO.
     data: [u8; 16],
 
