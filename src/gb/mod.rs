@@ -52,7 +52,7 @@ impl GameBoy {
         self.init_audio();
 
         // Setup window for rendering
-        let render_scale = 4;
+        let render_scale = 2;
         let option = WindowOptions {
             resize: false,
             scale: match render_scale {

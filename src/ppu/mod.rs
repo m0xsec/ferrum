@@ -523,6 +523,15 @@ pub struct Ppu {
     /// and (if enabled) a STAT interrupt is requested.
     lyc: u8,
 
+    /// Scroll X Register - SCX - ($FF43)
+    scx: u8,
+
+    /// Scroll Y Register - SCY - ($FF42)
+    scy: u8,
+
+    /// Background Palette Register - BGP - ($FF47)
+    bgp: u8,
+
     /// Pixel FIFO Fetcher
     fetcher: Fetcher,
 
@@ -565,6 +574,9 @@ impl Ppu {
             stat: Stat::new(),
             ly: 0x00,
             lyc: 0x00,
+            scx: 0x00,
+            scy: 0x00,
+            bgp: 0x00,
             fetcher,
             ticks: 0,
             x: 0,
@@ -587,7 +599,10 @@ impl Memory for Ppu {
             0x8000..=0x9FFF => self.vram.borrow()[(addr - 0x8000) as usize],
             0xFE00..=0xFE9F => self.oam.borrow()[(addr - 0xFE00) as usize],
             0xFF40 => self.lcdc.data,
+            0xFF42 => self.scy,
+            0xFF43 => self.scx,
             0xFF44 => self.ly,
+            0xFF47 => self.bgp,
             _ => UNDEFINED_READ,
         }
     }
@@ -605,9 +620,18 @@ impl Memory for Ppu {
             0xFF40 => {
                 self.lcdc.set(val);
             }
+            0xFF42 => {
+                self.scy = val;
+            }
+            0xFF43 => {
+                self.scx = val;
+            }
             0xFF44 => {
                 //self.ly = 0;
                 warn!("Ignoring write to LY register, as this is read-only.");
+            }
+            0xFF47 => {
+                self.bgp = val;
             }
             _ => warn!("Ignoring write to PPU register {:04X}", addr),
         }
@@ -710,9 +734,10 @@ impl Memory for Ppu {
                     // start fetching pixels from that row's address in VRAM, and for
                     // each tile, we can tell which 8-pixel line to fetch by computing
                     // LY modulo 8.
+                    let y = self.scy.wrapping_add(self.ly);
                     self.x = 0;
-                    let tile_line = self.ly % 8;
-                    let tile_map_row_adder = 0x9800 + (((self.ly / 8) as u16) * 32);
+                    let tile_line = y % 8;
+                    let tile_map_row_adder = 0x9800 + (((y / 8) as u16) * 32);
                     self.fetcher.start(tile_map_row_adder, tile_line);
 
                     self.mode = PpuMode::Drawing;
@@ -735,8 +760,9 @@ impl Memory for Ppu {
                 }
 
                 // Put a pixel from the FIFO in the render buffer
-                let pixel_color = Color::from_u8(self.fetcher.fifo.pop());
-                //self.viewport_buffer[self.x as usize] = pixel_color.to_u32();
+                let raw_pixel_color = self.fetcher.fifo.pop();
+                let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
+                let pixel_color = Color::from_u8(palette_color);
                 self.viewport_buffer[self.ly as usize][self.x as usize] = pixel_color.to_u32();
 
                 // Check when scan line is finished
@@ -748,17 +774,20 @@ impl Memory for Ppu {
             }
         }
 
-        // Update PPU mode
-        // TODO: Update PPU mode
-
         // Update STAT register
-        //let ppu_mode = self.mode;
-        //let ppu_ly = self.ly;
-        //let ppu_lyc = self.lyc;
-        //self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
+        let ppu_mode = self.mode;
+        let ppu_ly = self.ly;
+        let ppu_lyc = self.lyc;
+        self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
 
         //todo!("PPU is a WIP, plz try again soon <3");
 
-        self.ticks
+        //self.ticks
+        match self.mode {
+            PpuMode::HBlank => HBLANK_CYCLES,
+            PpuMode::VBlank => VBLANK_CYCLES,
+            PpuMode::OamScan => ACCESS_OAM_CYCLES,
+            PpuMode::Drawing => ACCESS_VRAM_CYCLES,
+        }
     }
 }
