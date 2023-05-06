@@ -551,6 +551,7 @@ pub struct Ppu {
     /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
     /// buffer is a 2D vector, [y][x]
     pub viewport_buffer: Vec<Vec<u32>>,
+    pub updated: bool,
 }
 
 impl Ppu {
@@ -584,6 +585,7 @@ impl Ppu {
             oam,
             //viewport_buffer: vec![BLACK; SCREEN_PIXELS],
             viewport_buffer: vec![vec![BLACK; SCREEN_WIDTH]; SCREEN_HEIGHT],
+            updated: false,
         }
     }
 
@@ -679,6 +681,7 @@ impl Memory for Ppu {
 
                     if self.ly == 144 {
                         self.mode = PpuMode::VBlank;
+                        self.updated = true;
                     } else {
                         self.mode = PpuMode::OamScan;
                     }

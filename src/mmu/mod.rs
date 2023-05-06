@@ -122,10 +122,10 @@ impl Mmu {
     }
 
     pub fn ppu_updated(&mut self) -> bool {
-        /*let result = self.ppu.updated;
+        let result = self.ppu.updated;
         self.ppu.updated = false;
-        result*/
-        true
+        result
+        //true
     }
 
     pub fn ppu_get_viewport(&mut self) -> &Vec<Vec<u32>> {
