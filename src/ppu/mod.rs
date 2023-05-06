@@ -571,7 +571,7 @@ impl Ppu {
             vram,
             oam,
             //viewport_buffer: vec![BLACK; SCREEN_PIXELS],
-            viewport_buffer: vec![vec![BLACK; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
+            viewport_buffer: vec![vec![BLACK; SCREEN_WIDTH]; SCREEN_HEIGHT],
         }
     }
 
