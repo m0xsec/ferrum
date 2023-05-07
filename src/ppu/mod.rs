@@ -215,7 +215,7 @@ impl Sprite {
 
 /// During a scanline, the PPU enters multiple different modes.
 /// There are 4 modes, each with a specific function.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum PpuMode {
     /// Mode 0 - H-Blank
     /// This mode takes up the remainder of the scanline after the Drawing Mode finishes.
@@ -529,8 +529,20 @@ pub struct Ppu {
     /// Scroll Y Register - SCY - ($FF42)
     scy: u8,
 
+    /// Window X Position - WX - ($FF4B)
+    wx: u8,
+
+    /// Window Y Position - WY - ($FF4A)
+    wy: u8,
+
     /// Background Palette Register - BGP - ($FF47)
     bgp: u8,
+
+    /// Object Palette 0 Register - OBP0 - ($FF48)
+    obp0: u8,
+
+    /// Object Palette 1 Register - OBP1 - ($FF49)
+    obp1: u8,
 
     /// Pixel FIFO Fetcher
     fetcher: Fetcher,
@@ -540,6 +552,12 @@ pub struct Ppu {
 
     /// Amount of pixels already rendered for the current line.
     x: u8,
+
+    /// SCX will require us to drop some pixels.
+    to_drop: u8,
+
+    /// Is set to true when a window fetch is in progress.
+    window_fetch: bool,
 
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
@@ -577,10 +595,16 @@ impl Ppu {
             lyc: 0x00,
             scx: 0x00,
             scy: 0x00,
+            wx: 0x00,
+            wy: 0x00,
             bgp: 0x00,
+            obp0: 0x00,
+            obp1: 0x00,
             fetcher,
             ticks: 0,
             x: 0,
+            to_drop: 0,
+            window_fetch: false,
             vram,
             oam,
             //viewport_buffer: vec![BLACK; SCREEN_PIXELS],
@@ -598,13 +622,33 @@ impl Ppu {
 impl Memory for Ppu {
     fn read8(&self, addr: u16) -> u8 {
         match addr {
-            0x8000..=0x9FFF => self.vram.borrow()[(addr - 0x8000) as usize],
-            0xFE00..=0xFE9F => self.oam.borrow()[(addr - 0xFE00) as usize],
+            0x8000..=0x9FFF => {
+                // VRAM Operations only allowed in H-Blank, V-Blank and OAM Scan modes.
+                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
+                if self.mode != PpuMode::Drawing {
+                    self.vram.borrow()[(addr - 0x8000) as usize]
+                } else {
+                    UNDEFINED_READ
+                }
+            }
+            0xFE00..=0xFE9F => {
+                // OAM Operations only allowed in H-Blank and V-Blank modes.
+                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
+                if self.mode == PpuMode::HBlank || self.mode == PpuMode::VBlank {
+                    self.oam.borrow()[(addr - 0xFE00) as usize]
+                } else {
+                    UNDEFINED_READ
+                }
+            }
             0xFF40 => self.lcdc.data,
             0xFF42 => self.scy,
             0xFF43 => self.scx,
             0xFF44 => self.ly,
             0xFF47 => self.bgp,
+            0xFF48 => self.obp0,
+            0xFF49 => self.obp1,
+            0xFF4A => self.wy,
+            0xFF4B => self.wx,
             _ => UNDEFINED_READ,
         }
     }
@@ -612,12 +656,18 @@ impl Memory for Ppu {
     fn write8(&mut self, addr: u16, val: u8) {
         match addr {
             0x8000..=0x9FFF => {
-                // VRAM
-                self.vram.borrow_mut()[(addr - 0x8000) as usize] = val;
+                // VRAM Operations only allowed in H-Blank, V-Blank and OAM Scan modes.
+                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
+                if self.mode != PpuMode::Drawing {
+                    self.vram.borrow_mut()[(addr - 0x8000) as usize] = val;
+                }
             }
             0xFE00..=0xFE9F => {
-                // OAM
-                self.oam.borrow_mut()[(addr - 0xFE00) as usize] = val;
+                // OAM Operations only allowed in H-Blank and V-Blank modes.
+                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
+                if self.mode == PpuMode::HBlank || self.mode == PpuMode::VBlank {
+                    self.oam.borrow_mut()[(addr - 0xFE00) as usize] = val;
+                }
             }
             0xFF40 => {
                 self.lcdc.set(val);
@@ -634,6 +684,18 @@ impl Memory for Ppu {
             }
             0xFF47 => {
                 self.bgp = val;
+            }
+            0xFF48 => {
+                self.obp0 = val;
+            }
+            0xFF49 => {
+                self.obp1 = val;
+            }
+            0xFF4A => {
+                self.wy = val;
+            }
+            0xFF4B => {
+                self.wx = val;
             }
             _ => warn!("Ignoring write to PPU register {:04X}", addr),
         }
