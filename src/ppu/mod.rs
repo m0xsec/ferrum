@@ -2,7 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use log::warn;
 
-use crate::mmu::memory::Memory;
+use crate::{
+    cpu::interrupts::{Flags, InterruptFlags},
+    mmu::memory::Memory,
+};
 
 use self::fetcher::Fetcher;
 
@@ -565,6 +568,9 @@ pub struct Ppu {
     vram: Rc<RefCell<[u8; VRAM_SIZE]>>,
     oam: Rc<RefCell<[u8; OAM_SIZE]>>,
 
+    /// Reference to interrupts
+    if_: Rc<RefCell<InterruptFlags>>,
+
     /// Rendering buffer of the viewport.
     /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
     /// buffer is a 2D vector, [y][x]
@@ -573,7 +579,7 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new() -> Self {
+    pub fn new(if_: Rc<RefCell<InterruptFlags>>) -> Self {
         let mut vram = Rc::new(RefCell::new([0; VRAM_SIZE]));
         let mut oam = Rc::new(RefCell::new([0; OAM_SIZE]));
         let fetcher = Fetcher::new(vram.clone(), oam.clone());
@@ -607,6 +613,7 @@ impl Ppu {
             window_fetch: false,
             vram,
             oam,
+            if_,
             //viewport_buffer: vec![BLACK; SCREEN_PIXELS],
             viewport_buffer: vec![vec![BLACK; SCREEN_WIDTH]; SCREEN_HEIGHT],
             updated: false,
@@ -718,6 +725,9 @@ impl Memory for Ppu {
             } else {
                 self.ldc_on = true;
                 self.mode = PpuMode::OamScan;
+                if self.stat.mode_2_stat_interrupt_enable() {
+                    self.if_.borrow_mut().set(Flags::LCDStat);
+                }
             }
         } else if !self.lcdc.lcd_display_enable() {
             // Turn LDC off and reset PPU
@@ -744,14 +754,22 @@ impl Memory for Ppu {
                     if self.ly == 144 {
                         self.mode = PpuMode::VBlank;
                         self.updated = true;
+
+                        // Check if we need to request a STAT interrupt
+                        if self.stat.mode_0_stat_interrupt_enable() {
+                            self.if_.borrow_mut().set(Flags::LCDStat);
+                        }
+
+                        // Request VBlank interrupt
+                        self.if_.borrow_mut().set(Flags::VBlank);
                     } else {
                         self.mode = PpuMode::OamScan;
-                    }
-                }
 
-                // Check if we need to request a STAT interrupt
-                if self.stat.mode_0_stat_interrupt_enable() {
-                    // TODO: Request STAT interrupt
+                        // Check if we need to request a STAT interrupt
+                        if self.stat.mode_2_stat_interrupt_enable() {
+                            self.if_.borrow_mut().set(Flags::LCDStat);
+                        }
+                    }
                 }
             }
             PpuMode::VBlank => {
@@ -766,12 +784,12 @@ impl Memory for Ppu {
                         // End of VBlank, back to initial state.
                         self.ly = 0;
                         self.mode = PpuMode::OamScan;
-                    }
-                }
 
-                // Check if we need to request a STAT interrupt
-                if self.stat.mode_1_stat_interrupt_enable() {
-                    // TODO: Request STAT interrupt
+                        // Check if we need to request a STAT interrupt
+                        if self.stat.mode_1_stat_interrupt_enable() {
+                            self.if_.borrow_mut().set(Flags::LCDStat);
+                        }
+                    }
                 }
             }
             PpuMode::OamScan => {
@@ -807,11 +825,6 @@ impl Memory for Ppu {
 
                     self.mode = PpuMode::Drawing;
                 }
-
-                // Check if we need to request a STAT interrupt
-                if self.stat.mode_2_stat_interrupt_enable() {
-                    // TODO: Request STAT interrupt
-                }
             }
             PpuMode::Drawing => {
                 // Fetch pixel data from our pixel FIFO
@@ -835,6 +848,10 @@ impl Memory for Ppu {
                 if self.x == 160 {
                     // Switch mode to HBlank
                     self.mode = PpuMode::HBlank;
+
+                    if self.stat.mode_0_stat_interrupt_enable() {
+                        self.if_.borrow_mut().set(Flags::LCDStat);
+                    }
                 }
             }
         }
