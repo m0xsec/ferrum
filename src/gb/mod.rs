@@ -1,8 +1,6 @@
 use crate::cpu;
 use crate::mmu;
-use crate::ppu::Ppu;
-use crate::ppu::SCREEN_PIXELS;
-use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::ppu::{SCREEN_HEIGHT, SCREEN_PIXELS, SCREEN_WIDTH};
 use log::warn;
 use minifb::{Key, Window, WindowOptions};
 use std::cell::RefCell;
