@@ -2,6 +2,7 @@ use crate::cpu;
 use crate::mmu;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_PIXELS, SCREEN_WIDTH};
 use log::warn;
+use minifb::KeyRepeat;
 use minifb::{Key, Window, WindowOptions};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -79,10 +80,11 @@ impl GameBoy {
             .unwrap();
 
         // Emulation loop
-        loop {
+        let mut emulate = true;
+        while emulate {
             // Stop emulation if window is closed.
             if !window.is_open() {
-                break;
+                emulate = false;
             }
 
             // Simulate correct CPU speed.
@@ -110,9 +112,14 @@ impl GameBoy {
 
             // Handle keyboard input.
             // TODO: Handle Gameboy Joypad input.
-            if window.is_key_down(Key::Escape) {
-                break;
-            }
+            window
+                .get_keys_pressed(KeyRepeat::No)
+                .iter()
+                .for_each(|key| match key {
+                    Key::Escape => emulate = false,
+                    Key::Space => println!("hemlo."),
+                    _ => (),
+                });
 
             // Maintain correct CPU speed.
             ticks -= waitticks;
