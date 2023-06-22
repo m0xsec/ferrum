@@ -648,6 +648,7 @@ impl Memory for Ppu {
                 }
             }
             0xFF40 => self.lcdc.data,
+            0xFF41 => self.stat.data,
             0xFF42 => self.scy,
             0xFF43 => self.scx,
             0xFF44 => self.ly,
@@ -678,6 +679,9 @@ impl Memory for Ppu {
             }
             0xFF40 => {
                 self.lcdc.set(val);
+            }
+            0xFF41 => {
+                self.stat.set(val & 0xF8);
             }
             0xFF42 => {
                 self.scy = val;
