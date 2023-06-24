@@ -117,7 +117,7 @@ impl GameBoy {
                 .iter()
                 .for_each(|key| match key {
                     Key::Escape => emulate = false,
-                    Key::Space => println!("hemlo."),
+                    Key::Space => println!("hemlo <3"),
                     _ => (),
                 });
 
