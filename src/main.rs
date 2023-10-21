@@ -17,7 +17,7 @@ fn main() {
     info!("ferrum is a WIP. Most functionality is not implemented.");
 
     let matches = Command::new("ferrum")
-        .version("0.1.1")
+        .version("0.1.2 PPU Re-Write")
         .author("m0x <https://github.com/m0xsec/ferrum>")
         .about("A Gameboy emulator written in Rust.")
         .arg(
