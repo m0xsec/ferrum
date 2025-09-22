@@ -60,8 +60,26 @@ pub fn new(path: String) -> Box<dyn Cartridge> {
     let cart: Box<dyn Cartridge> = match CartridgeType::try_from(rom_data[0x147]).unwrap() {
         CartridgeType::RomOnly => Box::new(RomOnly::new(rom_data)),
         CartridgeType::Mbc1 => Box::new(Mbc1::new(rom_data, vec![])),
+        CartridgeType::Mbc1Ram | CartridgeType::Mbc1RamBattery => {
+            let ram_size = match RamSize::try_from(rom_data[0x149]).unwrap() {
+                RamSize::Kb2Unused => 0,
+                RamSize::Kb8 => 0x2000,
+                RamSize::Kb32 => 0x8000,
+                RamSize::Kb64 => 0x10000,
+                RamSize::Kb128 => 0x20000,
+                RamSize::None => 0,
+            };
+            let ram = vec![0; ram_size];
+            Box::new(Mbc1::new(rom_data, ram))
+        }
         //TODO: Implement other cartridge types.
-        _ => todo!("Unsupported cartridge type: {:?}", path),
+        _ => {
+            let cart_type = rom_data[0x147];
+            panic!(
+                "Unsupported cartridge type: 0x{:02X} for ROM: {:?}",
+                cart_type, path
+            );
+        }
     };
 
     println!("\nCartridge Info:");

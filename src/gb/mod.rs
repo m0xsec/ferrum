@@ -20,6 +20,9 @@ pub struct GameBoy {
     /// To make emulation easier, we will define a MMU.
     /// The MMU is responsible for mapping memory addresses to actual memory locations.
     mmu: Rc<RefCell<mmu::Mmu>>,
+
+    /// Headless mode.
+    headless: bool,
 }
 
 impl GameBoy {
@@ -31,101 +34,119 @@ impl GameBoy {
 }
 impl GameBoy {
     /// Initialize Gameboy Hardware
-    pub fn power_on(rom_path: String) -> Self {
+    pub fn power_on(rom_path: String, headless: bool) -> Self {
         let mmu = Rc::new(RefCell::new(mmu::Mmu::new(rom_path)));
         let cpu = cpu::Cpu::power_on(mmu.clone());
 
-        Self { cpu, mmu }
+        Self {
+            cpu,
+            mmu,
+            headless,
+        }
     }
 
     /// Run Gameboy emulation
     pub fn run(&mut self) {
-        warn!("Emulation loop is a work in progress, no threading or event handling.");
+        if self.headless {
+            // In headless mode, run for a fixed number of frames.
+            let mut frames = 0;
+            while frames < 300 {
+                // about 5 seconds
+                let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
+                let mut ticks = 0;
+                while ticks < waitticks {
+                    ticks += self.cpu.cycle();
+                }
+                frames += 1;
+            }
+        } else {
+            warn!("Emulation loop is a work in progress, no threading or event handling.");
 
-        // The Gameboy runs at 4.194304 MHz.
-        // 4194304 Hz / 1000 ms * 16 ms = 67108.8
-        let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
-        let mut ticks = 0;
+            // The Gameboy runs at 4.194304 MHz.
+            // 4194304 Hz / 1000 ms * 16 ms = 67108.8
+            let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
+            let mut ticks = 0;
 
-        // Initialize Audio
-        self.init_audio();
+            // Initialize Audio
+            self.init_audio();
 
-        // Setup window for rendering
-        let render_scale = 2;
-        let option = WindowOptions {
-            resize: false,
-            scale: match render_scale {
-                1 => minifb::Scale::X1,
-                2 => minifb::Scale::X2,
-                4 => minifb::Scale::X4,
-                8 => minifb::Scale::X8,
-                _ => panic!("Invalid render scale: {}", render_scale),
-            },
-            ..Default::default()
-        };
-        let rom_title = self.mmu.borrow().rom_title();
-        let mut window = Window::new(
-            format!("ferrum - {}", rom_title).as_str(),
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            option,
-        )
-        .unwrap();
-        window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-
-        // Initialize window buffer
-        let mut buffer: Vec<u32> = vec![0; SCREEN_PIXELS];
-        window
-            .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
+            // Setup window for rendering
+            let render_scale = 2;
+            let option = WindowOptions {
+                resize: false,
+                scale: match render_scale {
+                    1 => minifb::Scale::X1,
+                    2 => minifb::Scale::X2,
+                    4 => minifb::Scale::X4,
+                    8 => minifb::Scale::X8,
+                    _ => panic!("Invalid render scale: {}", render_scale),
+                },
+                ..Default::default()
+            };
+            let rom_title = self.mmu.borrow().rom_title();
+            let mut window = Window::new(
+                format!("ferrum - {}", rom_title).as_str(),
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                option,
+            )
             .unwrap();
+            window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-        // Emulation loop
-        let mut emulate = true;
-        while emulate {
-            // Stop emulation if window is closed.
-            if !window.is_open() {
-                emulate = false;
-            }
+            // Initialize window buffer
+            let mut buffer: Vec<u32> = vec![0; SCREEN_PIXELS];
+            window
+                .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
+                .unwrap();
 
-            // Simulate correct CPU speed.
-            while ticks < waitticks {
-                self.cpu.dump_registers();
-                ticks += self.cpu.cycle();
-            }
-
-            // Is the PPU ready to render?
-            let updated = self.mmu.borrow_mut().ppu_updated();
-            if updated {
-                // Update window buffer
-                let viewport = self.mmu.borrow_mut().ppu_get_viewport().clone();
-                for y in 0..SCREEN_HEIGHT {
-                    for x in 0..SCREEN_WIDTH {
-                        let pixel = viewport[y][x];
-                        buffer[y * SCREEN_WIDTH + x] = pixel;
-                    }
+            // Emulation loop
+            let mut emulate = true;
+            while emulate {
+                // Stop emulation if window is closed.
+                if !window.is_open() {
+                    emulate = false;
                 }
 
+                // Simulate correct CPU speed.
+                while ticks < waitticks {
+                    //self.cpu.dump_registers();
+                    ticks += self.cpu.cycle();
+                }
+
+                // Is the PPU ready to render?
+                let updated = self.mmu.borrow_mut().ppu_updated();
+                if updated {
+                    // Update window buffer
+                    let viewport = self.mmu.borrow_mut().ppu_get_viewport().clone();
+                    for y in 0..SCREEN_HEIGHT {
+                        for x in 0..SCREEN_WIDTH {
+                            let pixel = viewport[y][x];
+                            buffer[y * SCREEN_WIDTH + x] = pixel;
+                        }
+                    }
+
+                    window
+                        .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
+                        .unwrap();
+                }
+
+                // Handle keyboard input.
+                // TODO: Handle Gameboy Joypad input.
                 window
-                    .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
-                    .unwrap();
+                    .get_keys_pressed(KeyRepeat::No)
+                    .iter()
+                    .for_each(|key| match key {
+                        Key::Escape => emulate = false,
+                        Key::Space => println!("hemlo <3"),
+                        _ => (),
+                    });
+
+                // Maintain correct CPU speed.
+                ticks -= waitticks;
+                sleep(Duration::from_millis(16));
             }
-
-            // Handle keyboard input.
-            // TODO: Handle Gameboy Joypad input.
-            window
-                .get_keys_pressed(KeyRepeat::No)
-                .iter()
-                .for_each(|key| match key {
-                    Key::Escape => emulate = false,
-                    Key::Space => println!("hemlo <3"),
-                    _ => (),
-                });
-
-            // Maintain correct CPU speed.
-            ticks -= waitticks;
-            sleep(Duration::from_millis(16));
+            // TODO: Handle emulation exit, such as saving RAM to file...
+            println!("\nkthxbai <3");
         }
-        // TODO: Handle emulation exit, such as saving RAM to file...
-        println!("\nkthxbai <3");
     }
 }

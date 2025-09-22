@@ -1,4 +1,4 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use log::{info, warn};
 
 mod boot;
@@ -28,11 +28,17 @@ fn main() {
                 .help("Sets the ROM file to load.")
                 .required(true),
         )
+        .arg(
+            Arg::new("headless")
+                .long("headless")
+                .help("Runs the emulator without a GUI.")
+                .action(ArgAction::SetTrue),
+        )
         .arg_required_else_help(true)
         .get_matches();
 
     let rom_path = matches.get_one::<String>("rom").unwrap();
-    let mut ferrum = gb::GameBoy::power_on(rom_path.to_string());
-    warn!("Graphics, input, and sound are not implemented yet. Ferrum will run, but you won't see anything outside of the console.");
+    let headless = matches.get_flag("headless");
+    let mut ferrum = gb::GameBoy::power_on(rom_path.to_string(), headless);
     ferrum.run();
 }
