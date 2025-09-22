@@ -142,7 +142,7 @@ impl Fetcher {
         let offset = if self.lcdc.tile_data_select() {
             0x8000 + (self.tile_id as u16 * 16)
         } else {
-            0x9000 + ((self.tile_id as i8 as u16) * 16)
+            (0x9000 as i32 + (self.tile_id as i8 as i32 * 16)) as u16
         };
 
         // Then, from that starting offset, we compute the final address to read
