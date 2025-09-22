@@ -26,7 +26,7 @@ fn main() {
                 .long("rom")
                 .value_name("FILE")
                 .help("Sets the ROM file to load.")
-                .required(true),
+                .required(false),
         )
         .arg(
             Arg::new("headless")
@@ -34,10 +34,9 @@ fn main() {
                 .help("Runs the emulator without a GUI.")
                 .action(ArgAction::SetTrue),
         )
-        .arg_required_else_help(true)
         .get_matches();
 
-    let rom_path = matches.get_one::<String>("rom").unwrap();
+    let rom_path = matches.get_one::<String>("rom").map(|s| s.as_str()).unwrap_or("");
     let headless = matches.get_flag("headless");
     let mut ferrum = gb::GameBoy::power_on(rom_path.to_string(), headless);
     ferrum.run();

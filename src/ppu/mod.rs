@@ -93,6 +93,16 @@ impl Color {
             Color::Black => BLACK,
         }
     }
+
+    /// Convert a Color to a u8
+    fn to_u8(&self) -> u8 {
+        match self {
+            Color::White => 0,
+            Color::LightGray => 1,
+            Color::DarkGray => 2,
+            Color::Black => 3,
+        }
+    }
 }
 
 /// Tiles are 8x8 pixels.
@@ -122,7 +132,7 @@ impl Tile {
         tile
     }
     /// Get the color of a pixel at a given x,y coordinate.
-    fn get_pixel(&self, x: usize, y: usize) -> Color {
+    pub fn get_pixel(&self, x: usize, y: usize) -> Color {
         let byte1 = self.data[y * 2];
         let byte2 = self.data[y * 2 + 1];
 
@@ -498,7 +508,7 @@ pub struct Ppu {
 
     /// The sprite layer is made up of 40 sprites that are stored in OAM.
     /// Each sprite can be 8x8 or 8x16 pixels (1x1 or 1x2 Tiles) depending on the sprite size flag (LCDC.2).
-    sprites: Vec<Sprite>,
+    line_sprites: Vec<Sprite>,
 
     /// Background Maps
     /// These keep track of the order tiles should be rendered in for the background and window layers.
@@ -594,8 +604,7 @@ impl Ppu {
             ldc_on: false,
             bg_tiles: vec![Tile::new(&[0; 16]); BG_TILES],
             window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
-            //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
-            sprites: vec![],
+            line_sprites: Vec::with_capacity(10),
             background_map: vec![0; BG_MAP],
             window_map: vec![0; WIN_MAP],
             mode: PpuMode::OamScan,
@@ -622,11 +631,6 @@ impl Ppu {
             viewport_buffer: vec![BLACK; SCREEN_PIXELS],
             updated: false,
         }
-    }
-
-    /// Initialize sprites vector once we know the sprite size.
-    fn init_sprites(&mut self, size: SpriteSize) {
-        self.sprites = vec![Sprite::new(&[0; 4], size); 40];
     }
 
     /// Check if a STAT interrupt should be requested.
@@ -717,10 +721,31 @@ impl Ppu {
                 // In this state, the PPU would scan the OAM (Objects Attribute Memory)
                 // from 0xfe00 to 0xfe9f to mix sprite pixels in the current line later.
                 // This always takes 80 clock ticks.
-
-                //
-                // TODO: OAM search will happen here (when implemented).
-                //
+                if self.ticks == 1 {
+                    // OAM search will happen here.
+                    // We need to find up to 10 sprites that are visible on the current scanline.
+                    self.line_sprites.clear();
+                    let sprite_size = if self.lcdc.sprite_size() { 16 } else { 8 };
+                    for i in 0..40 {
+                        let sprite_addr = 0xFE00 + (i as u16 * 4);
+                        let y = self.oam.borrow()[(sprite_addr - 0xFE00) as usize];
+                        if self.ly + 16 >= y && self.ly + 16 < y + sprite_size {
+                            if self.line_sprites.len() < 10 {
+                                let oam_data = &self.oam.borrow()
+                                    [(sprite_addr - 0xFE00) as usize..
+                                        (sprite_addr - 0xFE00) as usize + 4];
+                                self.line_sprites.push(Sprite::new(
+                                    oam_data,
+                                    if self.lcdc.sprite_size() {
+                                        SpriteSize::Large
+                                    } else {
+                                        SpriteSize::Small
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
 
                 if self.ticks >= 80 {
                     self.window_fetch = false;
@@ -802,7 +827,47 @@ impl Ppu {
                 // Put a pixel from the FIFO in the render buffer
                 let raw_pixel_color = self.fetcher.fifo.pop();
                 let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
-                let pixel_color = Color::from_u8(palette_color);
+                let mut pixel_color = Color::from_u8(palette_color);
+
+                // Sprite drawing
+                if self.lcdc.sprite_enable() {
+                    for sprite in &self.line_sprites {
+                        let sprite_x = sprite.x as i16 - 8;
+                        if sprite_x <= self.x as i16 && (self.x as i16) < sprite_x + 8 {
+                            let tile_x = if sprite.x_flip {
+                                7 - (self.x - sprite_x as u8)
+                            } else {
+                                self.x - sprite_x as u8
+                            };
+                            let tile_y = if sprite.y_flip {
+                                7 - (self.ly + 16 - sprite.y)
+                            } else {
+                                self.ly + 16 - sprite.y
+                            };
+
+                            let tile_addr = 0x8000 + (sprite.tile_id as u16 * 16);
+                            let tile_data = &self.vram.borrow()
+                                [(tile_addr - 0x8000) as usize..
+                                    (tile_addr - 0x8000) as usize + 16];
+                            let tile = Tile::new(tile_data);
+                            let sprite_pixel_color =
+                                tile.get_pixel(tile_x as usize, tile_y as usize);
+
+                            if sprite_pixel_color.to_u8() != 0 {
+                                let sprite_palette = if sprite.palette { self.obp1 } else { self.obp0 };
+                                let sprite_palette_color =
+                                    (sprite_palette >> (sprite_pixel_color.to_u8() * 2)) & 0x03;
+                                if sprite.priority && pixel_color.to_u8() != 0 {
+                                    // BG has priority, do nothing
+                                } else {
+                                    pixel_color = Color::from_u8(sprite_palette_color);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 self.viewport_buffer[self.ly as usize * SCREEN_WIDTH + self.x as usize] =
                     pixel_color.to_u32();
 

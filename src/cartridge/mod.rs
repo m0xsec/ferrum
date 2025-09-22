@@ -56,6 +56,9 @@ pub trait Cartridge: Memory {
 
 /// Initialize a new Cartridge.
 pub fn new(path: String) -> Box<dyn Cartridge> {
+    if path.is_empty() {
+        return Box::new(DummyCartridge::new());
+    }
     let rom_data = std::fs::read(path.clone()).unwrap();
     let cart: Box<dyn Cartridge> = match CartridgeType::try_from(rom_data[0x147]).unwrap() {
         CartridgeType::RomOnly => Box::new(RomOnly::new(rom_data)),
@@ -92,4 +95,32 @@ pub fn new(path: String) -> Box<dyn Cartridge> {
     println!("\tOld Licensee Code: {:?}\n", cart.old_licensee_code());
 
     cart
+}
+
+struct DummyCartridge;
+
+impl DummyCartridge {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Cartridge for DummyCartridge {}
+
+impl Memory for DummyCartridge {
+    fn read8(&self, _addr: u16) -> u8 {
+        0xFF
+    }
+
+    fn write8(&mut self, _addr: u16, _val: u8) {}
+
+    fn read16(&self, _addr: u16) -> u16 {
+        0xFFFF
+    }
+
+    fn write16(&mut self, _addr: u16, _val: u16) {}
+
+    fn cycle(&mut self, _: u32) -> u32 {
+        0
+    }
 }
