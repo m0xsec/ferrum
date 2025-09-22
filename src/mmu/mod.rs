@@ -128,7 +128,7 @@ impl Mmu {
         //true
     }
 
-    pub fn ppu_get_viewport(&mut self) -> &Vec<u32> {
+    pub fn ppu_get_viewport(&self) -> &Vec<u32> {
         &self.ppu.viewport_buffer
     }
 }

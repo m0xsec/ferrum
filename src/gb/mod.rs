@@ -110,7 +110,8 @@ impl GameBoy {
                 let updated = self.mmu.borrow_mut().ppu_updated();
                 if updated {
                     // Update window buffer
-                    let viewport = self.mmu.borrow_mut().ppu_get_viewport();
+                    let mmu = self.mmu.borrow();
+                    let viewport = mmu.ppu_get_viewport();
                     window
                         .update_with_buffer(viewport, SCREEN_WIDTH, SCREEN_HEIGHT)
                         .unwrap();
