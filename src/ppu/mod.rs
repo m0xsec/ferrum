@@ -824,10 +824,14 @@ impl Ppu {
                     return;
                 }
 
-                // Put a pixel from the FIFO in the render buffer
-                let raw_pixel_color = self.fetcher.fifo.pop();
-                let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
-                let mut pixel_color = Color::from_u8(palette_color);
+                let mut pixel_color = if self.lcdc.bg_window_enable() {
+                    // Put a pixel from the FIFO in the render buffer
+                    let raw_pixel_color = self.fetcher.fifo.pop();
+                    let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
+                    Color::from_u8(palette_color)
+                } else {
+                    Color::White
+                };
 
                 // Sprite drawing
                 if self.lcdc.sprite_enable() {
