@@ -839,19 +839,30 @@ impl Ppu {
                             } else {
                                 self.x - sprite_x as u8
                             };
-                            let tile_y = if sprite.y_flip {
-                                7 - (self.ly + 16 - sprite.y)
+
+                            let sprite_height = if let SpriteSize::Large = sprite.size { 16 } else { 8 };
+                            let mut tile_y = self.ly.wrapping_add(16).wrapping_sub(sprite.y);
+                            if sprite.y_flip {
+                                tile_y = sprite_height - 1 - tile_y;
+                            }
+
+                            let tile_id = if sprite_height == 16 {
+                                if tile_y < 8 {
+                                    sprite.tile_id & 0xFE
+                                } else {
+                                    sprite.tile_id | 0x01
+                                }
                             } else {
-                                self.ly + 16 - sprite.y
+                                sprite.tile_id
                             };
 
-                            let tile_addr = 0x8000 + (sprite.tile_id as u16 * 16);
+                            let tile_addr = 0x8000 + (tile_id as u16 * 16);
                             let tile_data = &self.vram.borrow()
                                 [(tile_addr - 0x8000) as usize..
                                     (tile_addr - 0x8000) as usize + 16];
                             let tile = Tile::new(tile_data);
                             let sprite_pixel_color =
-                                tile.get_pixel(tile_x as usize, tile_y as usize);
+                                tile.get_pixel(tile_x as usize, (tile_y % 8) as usize);
 
                             if sprite_pixel_color.to_u8() != 0 {
                                 let sprite_palette = if sprite.palette { self.obp1 } else { self.obp0 };
