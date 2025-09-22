@@ -93,12 +93,6 @@ impl GameBoy {
             .unwrap();
             window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-            // Initialize window buffer
-            let mut buffer: Vec<u32> = vec![0; SCREEN_PIXELS];
-            window
-                .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
-                .unwrap();
-
             // Emulation loop
             let mut emulate = true;
             while emulate {
@@ -109,7 +103,6 @@ impl GameBoy {
 
                 // Simulate correct CPU speed.
                 while ticks < waitticks {
-                    //self.cpu.dump_registers();
                     ticks += self.cpu.cycle();
                 }
 
@@ -117,16 +110,9 @@ impl GameBoy {
                 let updated = self.mmu.borrow_mut().ppu_updated();
                 if updated {
                     // Update window buffer
-                    let viewport = self.mmu.borrow_mut().ppu_get_viewport().clone();
-                    for y in 0..SCREEN_HEIGHT {
-                        for x in 0..SCREEN_WIDTH {
-                            let pixel = viewport[y][x];
-                            buffer[y * SCREEN_WIDTH + x] = pixel;
-                        }
-                    }
-
+                    let viewport = self.mmu.borrow_mut().ppu_get_viewport();
                     window
-                        .update_with_buffer(buffer.as_slice(), SCREEN_WIDTH, SCREEN_HEIGHT)
+                        .update_with_buffer(viewport, SCREEN_WIDTH, SCREEN_HEIGHT)
                         .unwrap();
                 }
 

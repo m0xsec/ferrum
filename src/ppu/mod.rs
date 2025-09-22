@@ -202,8 +202,8 @@ impl Sprite {
         let x_flip = data[3] & 0x20 == 0x20;
         let palette = data[3] & 0x10 == 0x10;
         Self {
-            y: data[0],
-            x: data[1],
+            x: data[0],
+            y: data[1],
             tile_id: data[2],
             attr: data[3],
             priority,
@@ -497,7 +497,7 @@ pub struct Ppu {
 
     /// The sprite layer is made up of 40 sprites that are stored in OAM.
     /// Each sprite can be 8x8 or 8x16 pixels (1x1 or 1x2 Tiles) depending on the sprite size flag (LCDC.2).
-    line_sprites: Vec<Sprite>,
+    sprites: Vec<Sprite>,
 
     /// Background Maps
     /// These keep track of the order tiles should be rendered in for the background and window layers.
@@ -573,8 +573,7 @@ pub struct Ppu {
 
     /// Rendering buffer of the viewport.
     /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
-    /// buffer is a 2D vector, [y][x]
-    pub viewport_buffer: Vec<Vec<u32>>,
+    pub viewport_buffer: Vec<u32>,
     pub updated: bool,
 }
 
@@ -590,7 +589,8 @@ impl Ppu {
             ldc_on: false,
             bg_tiles: vec![Tile::new(&[0; 16]); BG_TILES],
             window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
-            line_sprites: Vec::with_capacity(10),
+            //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
+            sprites: vec![],
             background_map: vec![0; BG_MAP],
             window_map: vec![0; WIN_MAP],
             mode: PpuMode::OamScan,
@@ -613,12 +613,15 @@ impl Ppu {
             vram,
             oam,
             if_,
-            //viewport_buffer: vec![BLACK; SCREEN_PIXELS],
-            viewport_buffer: vec![vec![BLACK; SCREEN_WIDTH]; SCREEN_HEIGHT],
+            viewport_buffer: vec![BLACK; SCREEN_PIXELS],
             updated: false,
         }
     }
 
+    /// Initialize sprites vector once we know the sprite size.
+    fn init_sprites(&mut self, size: SpriteSize) {
+        self.sprites = vec![Sprite::new(&[0; 4], size); 40];
+    }
 }
 
 impl Memory for Ppu {
@@ -794,41 +797,13 @@ impl Memory for Ppu {
             PpuMode::OamScan => {
                 // In this state, the PPU would scan the OAM (Objects Attribute Memory)
                 // from 0xfe00 to 0xfe9f to mix sprite pixels in the current line later.
-                // This always takes 80 clock ticks.
-                if self.ticks == 80 {
-                    self.line_sprites.clear();
+                // This always takes 40 clock ticks.
 
-                    let sprite_size_large = self.lcdc.sprite_size();
-                    let sprite_height = if sprite_size_large { 16 } else { 8 };
+                //
+                // TODO: OAM search will happen here (when implemented).
+                //
 
-                    for i in 0..40 {
-                        if self.line_sprites.len() >= 10 {
-                            break;
-                        }
-
-                        let sprite_addr = (i * 4) as usize;
-                        let sprite_data = &self.oam.borrow()[sprite_addr..sprite_addr + 4];
-                        let y_pos = sprite_data[0];
-                        let x_pos = sprite_data[1];
-
-                        // Check if the sprite is visible on this scanline
-                        if x_pos > 0
-                            && self.ly + 16 >= y_pos
-                            && self.ly + 16 < y_pos.wrapping_add(sprite_height)
-                        {
-                            let size = if sprite_size_large {
-                                SpriteSize::Large
-                            } else {
-                                SpriteSize::Small
-                            };
-                            let sprite = Sprite::new(sprite_data, size);
-                            self.line_sprites.push(sprite);
-                        }
-                    }
-
-                    // Sprites with smaller X coordinates have priority.
-                    self.line_sprites.sort_by_key(|s| s.x);
-
+                if self.ticks == 40 {
                     // Move to Pixel Transfer state. Initialize the fetcher to start
                     // reading background tiles from VRAM. We don't do scrolling yet
                     // and the boot ROM does nothing fancy with map addresses, so we
@@ -865,62 +840,11 @@ impl Memory for Ppu {
                 }
 
                 // Put a pixel from the FIFO in the render buffer
-                let raw_bg_pixel = self.fetcher.fifo.pop();
-                let bg_palette_color = (self.bgp >> (raw_bg_pixel * 2)) & 0x03;
-                let mut final_color = Color::from_u8(bg_palette_color);
-
-                if self.lcdc.sprite_enable() {
-                    for sprite in &self.line_sprites {
-                        if self.x >= sprite.x.saturating_sub(8) && self.x < sprite.x {
-                            let tile_x = self.x - sprite.x.saturating_sub(8);
-                            let tile_x = if sprite.x_flip { 7 - tile_x } else { tile_x };
-
-                            let mut tile_y = self.ly + 16 - sprite.y;
-                            if sprite.y_flip {
-                                let height = if let SpriteSize::Large = sprite.size { 16 } else { 8 };
-                                tile_y = height - 1 - tile_y;
-                            }
-
-                            let tile_id = if let SpriteSize::Large = sprite.size {
-                                if tile_y < 8 {
-                                    sprite.tile_id & 0xFE
-                                } else {
-                                    sprite.tile_id | 0x01
-                                }
-                            } else {
-                                sprite.tile_id
-                            };
-                            tile_y %= 8;
-
-                            let tile_addr = 0x8000 + (tile_id as u16 * 16);
-                            let tile_data = &self.vram.borrow()
-                                [(tile_addr - VRAM_START) as usize..(tile_addr - VRAM_START + 16) as usize];
-                            let tile = Tile::new(tile_data);
-
-                            let color_val = tile.get_pixel(tile_x as usize, tile_y as usize);
-                            let sprite_pixel_val = match color_val {
-                                Color::White => 0,
-                                Color::LightGray => 1,
-                                Color::DarkGray => 2,
-                                Color::Black => 3,
-                            };
-
-                            if sprite_pixel_val > 0 {
-                                // not transparent
-                                if sprite.priority && raw_bg_pixel > 0 {
-                                    // BG over OBJ, do nothing
-                                } else {
-                                    let palette = if sprite.palette { self.obp1 } else { self.obp0 };
-                                    let sprite_color_idx = (palette >> (sprite_pixel_val * 2)) & 0x03;
-                                    final_color = Color::from_u8(sprite_color_idx);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                self.viewport_buffer[self.ly as usize][self.x as usize] = final_color.to_u32();
+                let raw_pixel_color = self.fetcher.fifo.pop();
+                let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
+                let pixel_color = Color::from_u8(palette_color);
+                self.viewport_buffer[self.ly as usize * SCREEN_WIDTH + self.x as usize] =
+                    pixel_color.to_u32();
 
                 // Check when scan line is finished
                 self.x += 1;

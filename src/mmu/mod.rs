@@ -6,7 +6,7 @@ use crate::timer::Timer;
 
 use self::memory::Memory;
 use super::cpu::interrupts::InterruptFlags;
-use log::{info, warn};
+use log::{info, trace, warn};
 use rand::Rng;
 use std::io;
 use std::io::prelude::*;
@@ -128,7 +128,7 @@ impl Mmu {
         //true
     }
 
-    pub fn ppu_get_viewport(&mut self) -> &Vec<Vec<u32>> {
+    pub fn ppu_get_viewport(&mut self) -> &Vec<u32> {
         &self.ppu.viewport_buffer
     }
 }
@@ -192,7 +192,7 @@ impl Memory for Mmu {
 
     /// Write a byte (u8) to memory.
     fn write8(&mut self, addr: u16, val: u8) {
-        info!(
+        trace!(
             "MMU Write8 val --> [addr]: {:#02x} --> [{:#02x}]",
             val, addr
         );
