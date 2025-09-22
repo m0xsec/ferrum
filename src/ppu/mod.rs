@@ -308,7 +308,7 @@ impl Lcdc {
     /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Window layer.
     /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
     pub fn window_tile_map_select(&self) -> bool {
-        self.data * (1 << 6) != 0
+        self.data & (1 << 6) != 0
     }
 
     /// LCDC.5 - Window Display Enable
@@ -323,7 +323,7 @@ impl Lcdc {
     /// This bit determines which addressing mode to use for fetching Tile Data.
     /// If it is set to 1, the 8000 method is used. Otherwise, the 8800 method is used.
     pub fn tile_data_select(&self) -> bool {
-        self.data * (1 << 4) != 0
+        self.data & (1 << 4) != 0
     }
 
     /// LCDC.3 - BG Tile Map Select
