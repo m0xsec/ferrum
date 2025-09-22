@@ -647,6 +647,183 @@ impl Ppu {
 
         self.stat_interrupt_line = stat_int;
     }
+
+    pub fn cycle(&mut self, cpu_cycles: u32) {
+        // The PPU runs at 4MHz, so we need to run it 4 times for each CPU cycle.
+        for _ in 0..(cpu_cycles * 4) {
+            self.tick();
+        }
+    }
+
+    /// Tick the PPU for one cycle.
+    fn tick(&mut self) {
+        // Check if LCD is enabled
+        if !self.ldc_on {
+            if !self.lcdc.lcd_display_enable() {
+                return;
+            } else {
+                self.ldc_on = true;
+                self.mode = PpuMode::OamScan;
+            }
+        } else if !self.lcdc.lcd_display_enable() {
+            // Turn LDC off and reset PPU
+            self.ldc_on = false;
+            self.ly = 0;
+            self.x = 0;
+            return;
+        }
+
+        // Since the screen it on, keep counting ticks.
+        self.ticks += 1;
+
+        // Which PPU mode are we in?
+        match self.mode {
+            PpuMode::HBlank => {
+                // Nothing much to do here but wait the proper number of clock cycles.
+                // A full scanline takes 456 clock cycles to complete. At the end of a
+                // scanline, the PPU goes back to the initial OAM Search state.
+                // When we reach line 144, we switch to VBlank state instead.
+                if self.ticks >= 456 {
+                    self.ticks = 0;
+                    self.ly += 1;
+
+                    if self.ly == 144 {
+                        self.mode = PpuMode::VBlank;
+                        self.updated = true;
+
+                        // Request VBlank interrupt
+                        self.if_.borrow_mut().set(Flags::VBlank);
+                    } else {
+                        self.mode = PpuMode::OamScan;
+                    }
+                }
+            }
+            PpuMode::VBlank => {
+                // Nothing much to do here either. VBlank is when the CPU is supposed to
+                // do stuff that takes time. It takes as many cycles as would be needed
+                // to keep displaying scanlines up to line 153.
+                if self.ticks >= 456 {
+                    self.ticks = 0;
+                    self.ly += 1;
+
+                    if self.ly > 153 {
+                        // End of VBlank, back to initial state.
+                        self.ly = 0;
+                        self.mode = PpuMode::OamScan;
+                    }
+                }
+            }
+            PpuMode::OamScan => {
+                // In this state, the PPU would scan the OAM (Objects Attribute Memory)
+                // from 0xfe00 to 0xfe9f to mix sprite pixels in the current line later.
+                // This always takes 80 clock ticks.
+
+                //
+                // TODO: OAM search will happen here (when implemented).
+                //
+
+                if self.ticks >= 80 {
+                    self.window_fetch = false;
+                    // Move to Pixel Transfer state. Initialize the fetcher to start
+                    // reading background tiles from VRAM. We don't do scrolling yet
+                    // and the boot ROM does nothing fancy with map addresses, so we
+                    // just give the fetcher the base address of the row of tiles we
+                    // need in video RAM:
+                    //
+                    // - The background map is 32×32 tiles big.
+                    // - The viewport starts at the top left of that map when LY is 0.
+                    // - Each tile is 8×8 pixels.
+                    //
+                    // In the present case, we only need to figure out in which row of
+                    // the background map our current line (at position LY) is. Then we
+                    // start fetching pixels from that row's address in VRAM, and for
+                    // each tile, we can tell which 8-pixel line to fetch by computing
+                    // LY modulo 8.
+                    let y = self.scy.wrapping_add(self.ly);
+                    self.x = 0;
+
+                    let tile_map_base = if self.lcdc.bg_tile_map_select() {
+                        0x9C00
+                    } else {
+                        0x9800
+                    };
+
+                    let tile_map_row_addr = tile_map_base + (((y / 8) as u16) * 32);
+                    let tile_line = y % 8;
+
+                    self.to_drop = self.scx % 8;
+                    self.fetcher
+                        .start(tile_map_row_addr, tile_line, self.scx / 8);
+
+                    self.mode = PpuMode::Drawing;
+                }
+            }
+            PpuMode::Drawing => {
+                // Check if we need to switch to window rendering
+                if self.lcdc.window_display_enable()
+                    && self.wy <= self.ly
+                    && self.x + 7 >= self.wx
+                    && !self.window_fetch
+                {
+                    self.window_fetch = true;
+                    let tile_map_base = if self.lcdc.window_tile_map_select() {
+                        0x9C00
+                    } else {
+                        0x9800
+                    };
+                    let y = self.ly - self.wy;
+                    let tile_line = y % 8;
+                    let tile_map_row_addr = tile_map_base + (((y / 8) as u16) * 32);
+                    self.fetcher.start(tile_map_row_addr, tile_line, 0);
+                }
+
+                // Fetch pixel data from our pixel FIFO
+                self.fetcher.tick();
+
+                // Drop pixels for SCX
+                if self.to_drop > 0 {
+                    if self.fetcher.fifo.size() > 8 {
+                        for _ in 0..self.to_drop {
+                            self.fetcher.fifo.pop();
+                        }
+                        self.to_drop = 0;
+                    } else {
+                        return;
+                    }
+                }
+
+                // Stop here if the FIFO isn't holding at least 8 pixels.
+                // NOTE: This will be used to mix in sprite data when we implement these.
+                // It also guarantees the FIFO will always have data to Pop() later.
+                if self.fetcher.fifo.size() < 8 {
+                    return;
+                }
+
+                // Put a pixel from the FIFO in the render buffer
+                let raw_pixel_color = self.fetcher.fifo.pop();
+                let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
+                let pixel_color = Color::from_u8(palette_color);
+                self.viewport_buffer[self.ly as usize * SCREEN_WIDTH + self.x as usize] =
+                    pixel_color.to_u32();
+
+                // Check when scan line is finished
+                self.x += 1;
+                if self.x >= 160 {
+                    // Switch mode to HBlank
+                    self.mode = PpuMode::HBlank;
+                }
+            }
+        }
+
+        // Update STAT register
+        let ppu_mode = self.mode;
+        let ppu_ly = self.ly;
+        let ppu_lyc = self.lyc;
+        self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
+
+        // STAT interrupt handling
+        self.check_stat_interrupts();
+    }
 }
 
 impl Memory for Ppu {
@@ -749,182 +926,8 @@ impl Memory for Ppu {
     }
 
     fn cycle(&mut self, _: u32) -> u32 {
-        // Check if LCD is enabled
-        if !self.ldc_on {
-            if !self.lcdc.lcd_display_enable() {
-                return 0;
-            } else {
-                self.ldc_on = true;
-                self.mode = PpuMode::OamScan;
-            }
-        } else if !self.lcdc.lcd_display_enable() {
-            // Turn LDC off and reset PPU
-            self.ldc_on = false;
-            self.ly = 0;
-            self.x = 0;
-            return 0;
-        }
-
-        // Since the screen it on, keep counting ticks.
-        self.ticks += 1;
-
-        // Which PPU mode are we in?
-        match self.mode {
-            PpuMode::HBlank => {
-                // Nothing much to do here but wait the proper number of clock cycles.
-                // A full scanline takes 456 clock cycles to complete. At the end of a
-                // scanline, the PPU goes back to the initial OAM Search state.
-                // When we reach line 144, we switch to VBlank state instead.
-                if self.ticks == 456 {
-                    self.ticks = 0;
-                    self.ly += 1;
-
-                    if self.ly == 144 {
-                        self.mode = PpuMode::VBlank;
-                        self.updated = true;
-
-                        // Request VBlank interrupt
-                        self.if_.borrow_mut().set(Flags::VBlank);
-                    } else {
-                        self.mode = PpuMode::OamScan;
-                    }
-                }
-            }
-            PpuMode::VBlank => {
-                // Nothing much to do here either. VBlank is when the CPU is supposed to
-                // do stuff that takes time. It takes as many cycles as would be needed
-                // to keep displaying scanlines up to line 153.
-                if self.ticks == 456 {
-                    self.ticks = 0;
-                    self.ly += 1;
-
-                    if self.ly == 153 {
-                        // End of VBlank, back to initial state.
-                        self.ly = 0;
-                        self.mode = PpuMode::OamScan;
-
-                    }
-                }
-            }
-            PpuMode::OamScan => {
-                // In this state, the PPU would scan the OAM (Objects Attribute Memory)
-                // from 0xfe00 to 0xfe9f to mix sprite pixels in the current line later.
-                // This always takes 40 clock ticks.
-
-                //
-                // TODO: OAM search will happen here (when implemented).
-                //
-
-                if self.ticks == 40 {
-                    self.window_fetch = false;
-                    // Move to Pixel Transfer state. Initialize the fetcher to start
-                    // reading background tiles from VRAM. We don't do scrolling yet
-                    // and the boot ROM does nothing fancy with map addresses, so we
-                    // just give the fetcher the base address of the row of tiles we
-                    // need in video RAM:
-                    //
-                    // - The background map is 32×32 tiles big.
-                    // - The viewport starts at the top left of that map when LY is 0.
-                    // - Each tile is 8×8 pixels.
-                    //
-                    // In the present case, we only need to figure out in which row of
-                    // the background map our current line (at position LY) is. Then we
-                    // start fetching pixels from that row's address in VRAM, and for
-                    // each tile, we can tell which 8-pixel line to fetch by computing
-                    // LY modulo 8.
-                    let y = self.scy.wrapping_add(self.ly);
-                    self.x = 0;
-
-                    let tile_map_base = if self.lcdc.bg_tile_map_select() {
-                        0x9C00
-                    } else {
-                        0x9800
-                    };
-
-                    let tile_map_row_addr =
-                        tile_map_base + (((y / 8) as u16) * 32) + ((self.scx / 8) as u16);
-                    let tile_line = y % 8;
-
-                    self.to_drop = self.scx % 8;
-                    self.fetcher.start(tile_map_row_addr, tile_line);
-
-                    self.mode = PpuMode::Drawing;
-                }
-            }
-            PpuMode::Drawing => {
-                // Check if we need to switch to window rendering
-                if self.lcdc.window_display_enable()
-                    && self.wy <= self.ly
-                    && self.x + 7 >= self.wx
-                    && !self.window_fetch
-                {
-                    self.window_fetch = true;
-                    let tile_map_base = if self.lcdc.window_tile_map_select() {
-                        0x9C00
-                    } else {
-                        0x9800
-                    };
-                    let y = self.ly - self.wy;
-                    let tile_line = y % 8;
-                    let tile_map_row_addr = tile_map_base + (((y / 8) as u16) * 32);
-                    self.fetcher.start(tile_map_row_addr, tile_line);
-                }
-
-                // Fetch pixel data from our pixel FIFO
-                self.fetcher.tick();
-
-                // Drop pixels for SCX
-                if self.to_drop > 0 {
-                    if self.fetcher.fifo.size() > 8 {
-                        for _ in 0..self.to_drop {
-                            self.fetcher.fifo.pop();
-                        }
-                        self.to_drop = 0;
-                    } else {
-                        return 0;
-                    }
-                }
-
-                // Stop here if the FIFO isn't holding at least 8 pixels.
-                // NOTE: This will be used to mix in sprite data when we implement these.
-                // It also guarantees the FIFO will always have data to Pop() later.
-                if self.fetcher.fifo.size() < 8 {
-                    return 0;
-                }
-
-                // Put a pixel from the FIFO in the render buffer
-                let raw_pixel_color = self.fetcher.fifo.pop();
-                let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
-                let pixel_color = Color::from_u8(palette_color);
-                self.viewport_buffer[self.ly as usize * SCREEN_WIDTH + self.x as usize] =
-                    pixel_color.to_u32();
-
-                // Check when scan line is finished
-                self.x += 1;
-                if self.x == 160 {
-                    // Switch mode to HBlank
-                    self.mode = PpuMode::HBlank;
-                }
-            }
-        }
-
-        // Update STAT register
-        let ppu_mode = self.mode;
-        let ppu_ly = self.ly;
-        let ppu_lyc = self.lyc;
-        self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
-
-        // STAT interrupt handling
-        self.check_stat_interrupts();
-
-        //todo!("PPU is a WIP, plz try again soon <3");
-
-        //self.ticks
-        match self.mode {
-            PpuMode::HBlank => HBLANK_CYCLES,
-            PpuMode::VBlank => VBLANK_CYCLES,
-            PpuMode::OamScan => ACCESS_OAM_CYCLES,
-            PpuMode::Drawing => ACCESS_VRAM_CYCLES,
-        }
+        // This is a stub, we are not using it.
+        // The MMU will call the PPU's cycle method directly.
+        0
     }
 }

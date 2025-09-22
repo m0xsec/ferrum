@@ -42,6 +42,9 @@ pub struct Fetcher {
     /// Tile index of the tile to read in the background map.
     tile_index: u8,
 
+    /// Tile offset from SCX register.
+    tile_offset: u8,
+
     /// Tile number from the tile map.
     tile_id: u8,
 
@@ -66,6 +69,7 @@ impl Fetcher {
             data_addr: 0,
             tile_line: 0,
             tile_index: 0,
+            tile_offset: 0,
             tile_id: 0,
             tile_data: [0; 8],
         }
@@ -73,10 +77,11 @@ impl Fetcher {
 
     /// Start fetching a lin of pixels, starting at the given tile address in the background map.
     /// tile_line indicates which row of pixels to fetch from the tile.
-    pub fn start(&mut self, map_addr: u16, tile_line: u8) {
+    pub fn start(&mut self, map_addr: u16, tile_line: u8, tile_offset: u8) {
         self.map_addr = map_addr;
         self.tile_line = tile_line;
         self.tile_index = 0;
+        self.tile_offset = tile_offset;
         self.state = FetcherState::ReadTileId;
 
         // Clear the FIFO, as it will likely contain stale data from the previous scan line.
@@ -99,8 +104,9 @@ impl Fetcher {
                 // Read the tile's number from the background map. This will be used
                 // in the next states to find the address where the tile's actual pixel
                 // data is stored in memory.
-                self.tile_id = self.vram.borrow()
-                    [(self.map_addr as usize + self.tile_index as usize) - 0x8000];
+                let tile_map_idx = (self.tile_offset as u16 + self.tile_index as u16) & 0x1F;
+                let tile_id_addr = self.map_addr + tile_map_idx;
+                self.tile_id = self.vram.borrow()[tile_id_addr as usize - 0x8000];
 
                 self.state = FetcherState::ReadTileData0;
             }
