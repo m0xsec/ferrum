@@ -281,16 +281,17 @@ enum PpuMode {
 ///
 /// Bit 0  BG/Window Enable
 ///     If this bit is set to 0, neither Background nor Window tiles are drawn. Sprites are unaffected
-struct Lcdc {
-    data: u8,
+#[derive(Clone, Copy)]
+pub struct Lcdc {
+    pub data: u8,
 }
 
 impl Lcdc {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { data: 0x00 }
     }
 
-    fn set(&mut self, data: u8) {
+    pub fn set(&mut self, data: u8) {
         self.data = data;
     }
 
@@ -299,14 +300,14 @@ impl Lcdc {
     /// The PPU only operates while this bit is set to 1.
     /// As soon as it is set to 0 the screen goes blank and the PPU stops all operation.
     /// The PPU also undergoes a “reset”.
-    fn lcd_display_enable(&self) -> bool {
+    pub fn lcd_display_enable(&self) -> bool {
         self.data & (1 << 7) != 0
     }
 
     /// LCDC.6 - Window Tile Map Select
     /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Window layer.
     /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
-    fn window_tile_map_select(&self) -> bool {
+    pub fn window_tile_map_select(&self) -> bool {
         self.data * (1 << 6) != 0
     }
 
@@ -314,35 +315,35 @@ impl Lcdc {
     /// This bit controls whether or not the Window layer is rendered at all.
     /// If it is set to 0, everything Window-related can be ignored, as it is not rendered.
     /// Otherwise the Window renders as normal.
-    fn window_display_enable(&self) -> bool {
+    pub fn window_display_enable(&self) -> bool {
         self.data & (1 << 5) != 0
     }
 
     /// LCDC.4 - Tile Data Select
     /// This bit determines which addressing mode to use for fetching Tile Data.
     /// If it is set to 1, the 8000 method is used. Otherwise, the 8800 method is used.
-    fn tile_data_select(&self) -> bool {
+    pub fn tile_data_select(&self) -> bool {
         self.data * (1 << 4) != 0
     }
 
     /// LCDC.3 - BG Tile Map Select
     /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Background layer.
     /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
-    fn bg_tile_map_select(&self) -> bool {
+    pub fn bg_tile_map_select(&self) -> bool {
         self.data & (1 << 3) != 0
     }
 
     /// LCDC.2 - Sprite Size
     /// As mentioned in the description of sprites above, there is a certain option which can enable “Tall Sprite Mode”.
     /// Setting this bit to 1 does so. In this mode, each sprite consists of two tiles on top of each other rather than one.
-    fn sprite_size(&self) -> bool {
+    pub fn sprite_size(&self) -> bool {
         self.data & (1 << 2) != 0
     }
 
     /// LCDC.1 - Sprite Enable
     /// This bit controls whether or not sprites are rendered at all.
     /// Setting this bit to 0 hides all sprites, otherwise they are rendered as normal.
-    fn sprite_enable(&self) -> bool {
+    pub fn sprite_enable(&self) -> bool {
         self.data & (1 << 1) != 0
     }
 
@@ -350,7 +351,7 @@ impl Lcdc {
     /// This bit controls whether or not Background and Window tiles are drawn.
     /// If it is set to 0, no Background or Window tiles are drawn and all pixels are drawn as white (Color 0).
     /// The only exception to this are sprites, as they are unaffected.
-    fn bg_window_enable(&self) -> bool {
+    pub fn bg_window_enable(&self) -> bool {
         self.data & (1 << 0) != 0
     }
 }
@@ -562,6 +563,9 @@ pub struct Ppu {
     /// Is set to true when a window fetch is in progress.
     window_fetch: bool,
 
+    /// Tracks the state of the STAT interrupt line
+    stat_interrupt_line: bool,
+
     /// The PPU handles VRAM and OAM memory.
     /// VRAM is used to store the background and window tiles.
     /// OAM is used to store the sprite data.
@@ -581,7 +585,8 @@ impl Ppu {
     pub fn new(if_: Rc<RefCell<InterruptFlags>>) -> Self {
         let mut vram = Rc::new(RefCell::new([0; VRAM_SIZE]));
         let mut oam = Rc::new(RefCell::new([0; OAM_SIZE]));
-        let fetcher = Fetcher::new(vram.clone(), oam.clone());
+        let lcdc = Lcdc::new();
+        let fetcher = Fetcher::new(vram.clone(), oam.clone(), lcdc.clone());
         Self {
             bg_enabled: false,
             window_enabled: false,
@@ -594,7 +599,7 @@ impl Ppu {
             background_map: vec![0; BG_MAP],
             window_map: vec![0; WIN_MAP],
             mode: PpuMode::OamScan,
-            lcdc: Lcdc::new(),
+            lcdc,
             stat: Stat::new(),
             ly: 0x00,
             lyc: 0x00,
@@ -610,6 +615,7 @@ impl Ppu {
             x: 0,
             to_drop: 0,
             window_fetch: false,
+            stat_interrupt_line: false,
             vram,
             oam,
             if_,
@@ -621,6 +627,25 @@ impl Ppu {
     /// Initialize sprites vector once we know the sprite size.
     fn init_sprites(&mut self, size: SpriteSize) {
         self.sprites = vec![Sprite::new(&[0; 4], size); 40];
+    }
+
+    /// Check if a STAT interrupt should be requested.
+    fn check_stat_interrupts(&mut self) {
+        let lyc_match = self.ly == self.lyc;
+        let mode_int = match self.mode {
+            PpuMode::HBlank if self.stat.mode_0_stat_interrupt_enable() => true,
+            PpuMode::VBlank if self.stat.mode_1_stat_interrupt_enable() => true,
+            PpuMode::OamScan if self.stat.mode_2_stat_interrupt_enable() => true,
+            _ => false,
+        };
+
+        let stat_int = (lyc_match && self.stat.lyc_ly_stat_interrupt_enable()) || mode_int;
+
+        if stat_int && !self.stat_interrupt_line {
+            self.if_.borrow_mut().set(Flags::LCDStat);
+        }
+
+        self.stat_interrupt_line = stat_int;
     }
 }
 
@@ -650,6 +675,7 @@ impl Memory for Ppu {
             0xFF42 => self.scy,
             0xFF43 => self.scx,
             0xFF44 => self.ly,
+            0xFF45 => self.lyc,
             0xFF47 => self.bgp,
             0xFF48 => self.obp0,
             0xFF49 => self.obp1,
@@ -691,6 +717,9 @@ impl Memory for Ppu {
                 //self.ly = 0;
                 warn!("Ignoring write to LY register, as this is read-only.");
             }
+            0xFF45 => {
+                self.lyc = val;
+            }
             0xFF47 => {
                 self.bgp = val;
             }
@@ -727,9 +756,6 @@ impl Memory for Ppu {
             } else {
                 self.ldc_on = true;
                 self.mode = PpuMode::OamScan;
-                if self.stat.mode_2_stat_interrupt_enable() {
-                    self.if_.borrow_mut().set(Flags::LCDStat);
-                }
             }
         } else if !self.lcdc.lcd_display_enable() {
             // Turn LDC off and reset PPU
@@ -757,20 +783,10 @@ impl Memory for Ppu {
                         self.mode = PpuMode::VBlank;
                         self.updated = true;
 
-                        // Check if we need to request a STAT interrupt
-                        if self.stat.mode_0_stat_interrupt_enable() {
-                            self.if_.borrow_mut().set(Flags::LCDStat);
-                        }
-
                         // Request VBlank interrupt
                         self.if_.borrow_mut().set(Flags::VBlank);
                     } else {
                         self.mode = PpuMode::OamScan;
-
-                        // Check if we need to request a STAT interrupt
-                        if self.stat.mode_2_stat_interrupt_enable() {
-                            self.if_.borrow_mut().set(Flags::LCDStat);
-                        }
                     }
                 }
             }
@@ -787,10 +803,6 @@ impl Memory for Ppu {
                         self.ly = 0;
                         self.mode = PpuMode::OamScan;
 
-                        // Check if we need to request a STAT interrupt
-                        if self.stat.mode_1_stat_interrupt_enable() {
-                            self.if_.borrow_mut().set(Flags::LCDStat);
-                        }
                     }
                 }
             }
@@ -804,6 +816,7 @@ impl Memory for Ppu {
                 //
 
                 if self.ticks == 40 {
+                    self.window_fetch = false;
                     // Move to Pixel Transfer state. Initialize the fetcher to start
                     // reading background tiles from VRAM. We don't do scrolling yet
                     // and the boot ROM does nothing fancy with map addresses, so we
@@ -821,16 +834,56 @@ impl Memory for Ppu {
                     // LY modulo 8.
                     let y = self.scy.wrapping_add(self.ly);
                     self.x = 0;
+
+                    let tile_map_base = if self.lcdc.bg_tile_map_select() {
+                        0x9C00
+                    } else {
+                        0x9800
+                    };
+
+                    let tile_map_row_addr =
+                        tile_map_base + (((y / 8) as u16) * 32) + ((self.scx / 8) as u16);
                     let tile_line = y % 8;
-                    let tile_map_row_adder = 0x9800 + (((y / 8) as u16) * 32);
-                    self.fetcher.start(tile_map_row_adder, tile_line);
+
+                    self.to_drop = self.scx % 8;
+                    self.fetcher.start(tile_map_row_addr, tile_line);
 
                     self.mode = PpuMode::Drawing;
                 }
             }
             PpuMode::Drawing => {
+                // Check if we need to switch to window rendering
+                if self.lcdc.window_display_enable()
+                    && self.wy <= self.ly
+                    && self.x + 7 >= self.wx
+                    && !self.window_fetch
+                {
+                    self.window_fetch = true;
+                    let tile_map_base = if self.lcdc.window_tile_map_select() {
+                        0x9C00
+                    } else {
+                        0x9800
+                    };
+                    let y = self.ly - self.wy;
+                    let tile_line = y % 8;
+                    let tile_map_row_addr = tile_map_base + (((y / 8) as u16) * 32);
+                    self.fetcher.start(tile_map_row_addr, tile_line);
+                }
+
                 // Fetch pixel data from our pixel FIFO
                 self.fetcher.tick();
+
+                // Drop pixels for SCX
+                if self.to_drop > 0 {
+                    if self.fetcher.fifo.size() > 8 {
+                        for _ in 0..self.to_drop {
+                            self.fetcher.fifo.pop();
+                        }
+                        self.to_drop = 0;
+                    } else {
+                        return 0;
+                    }
+                }
 
                 // Stop here if the FIFO isn't holding at least 8 pixels.
                 // NOTE: This will be used to mix in sprite data when we implement these.
@@ -851,10 +904,6 @@ impl Memory for Ppu {
                 if self.x == 160 {
                     // Switch mode to HBlank
                     self.mode = PpuMode::HBlank;
-
-                    if self.stat.mode_0_stat_interrupt_enable() {
-                        self.if_.borrow_mut().set(Flags::LCDStat);
-                    }
                 }
             }
         }
@@ -864,6 +913,9 @@ impl Memory for Ppu {
         let ppu_ly = self.ly;
         let ppu_lyc = self.lyc;
         self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
+
+        // STAT interrupt handling
+        self.check_stat_interrupts();
 
         //todo!("PPU is a WIP, plz try again soon <3");
 

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{fifo::Fifo, OAM_SIZE, VRAM_SIZE};
+use super::{fifo::Fifo, Lcdc, OAM_SIZE, VRAM_SIZE};
 
 /// Pixel Fetcher States.
 enum FetcherState {
@@ -20,6 +20,9 @@ pub struct Fetcher {
 
     /// Reference to OAM.
     oam: Rc<RefCell<[u8; OAM_SIZE]>>,
+
+    /// LCDC Register
+    lcdc: Lcdc,
 
     /// Fetcher clock cycles counter, for timing.
     ticks: u8,
@@ -47,11 +50,16 @@ pub struct Fetcher {
 }
 
 impl Fetcher {
-    pub fn new(vram: Rc<RefCell<[u8; VRAM_SIZE]>>, oam: Rc<RefCell<[u8; OAM_SIZE]>>) -> Fetcher {
+    pub fn new(
+        vram: Rc<RefCell<[u8; VRAM_SIZE]>>,
+        oam: Rc<RefCell<[u8; OAM_SIZE]>>,
+        lcdc: Lcdc,
+    ) -> Fetcher {
         Fetcher {
             fifo: Fifo::new(),
             vram,
             oam,
+            lcdc,
             ticks: 0,
             state: FetcherState::ReadTileId,
             map_addr: 0,
@@ -129,9 +137,13 @@ impl Fetcher {
     /// Each pixel requires 2 bits of information, which gets read in two separate steps.
     pub fn read_tile_line(&mut self, bit_plane: u8) {
         // A tile's graphical data takes 16 bytes (2 bytes per row of 8 pixels).
-        // Tile data starts at address 0x8000 so we first compute an offset to
+        // Tile data starts at address 0x8000 or 0x8800 so we first compute an offset to
         // find out where the data for the tile we want starts.
-        let offset = 0x8000 + (self.tile_id as u16 * 16);
+        let offset = if self.lcdc.tile_data_select() {
+            0x8000 + (self.tile_id as u16 * 16)
+        } else {
+            0x9000 + ((self.tile_id as i8 as u16) * 16)
+        };
 
         // Then, from that starting offset, we compute the final address to read
         // by finding out which of the 8-pixel rows of the tile we want to display.
