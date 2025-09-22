@@ -838,11 +838,8 @@ impl Ppu {
                     for sprite in &self.line_sprites {
                         let sprite_x = sprite.x as i16 - 8;
                         if sprite_x <= self.x as i16 && (self.x as i16) < sprite_x + 8 {
-                            let tile_x = if sprite.x_flip {
-                                7 - (self.x - sprite_x as u8)
-                            } else {
-                                self.x - sprite_x as u8
-                            };
+                            let tile_x = (self.x as i16 - sprite_x) as u8;
+                            let tile_x = if sprite.x_flip { 7 - tile_x } else { tile_x };
 
                             let sprite_height = if let SpriteSize::Large = sprite.size { 16 } else { 8 };
                             let mut tile_y = self.ly.wrapping_add(16).wrapping_sub(sprite.y);
