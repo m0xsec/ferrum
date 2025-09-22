@@ -54,9 +54,12 @@ impl GameBoy {
                 // about 5 seconds
                 let waitticks = (4194304f64 / 1000.0 * 16.0).round() as u32;
                 let mut ticks = 0;
+                let loop_start = std::time::Instant::now();
                 while ticks < waitticks {
                     ticks += self.cpu.cycle();
                 }
+                let loop_duration = loop_start.elapsed();
+                println!("Headless frame time: {:?}", loop_duration);
                 frames += 1;
             }
         } else {
@@ -95,7 +98,10 @@ impl GameBoy {
 
             // Emulation loop
             let mut emulate = true;
+            let frame_duration = Duration::from_millis(16);
             while emulate {
+                let frame_start = std::time::Instant::now();
+
                 // Stop emulation if window is closed.
                 if !window.is_open() {
                     emulate = false;
@@ -130,7 +136,12 @@ impl GameBoy {
 
                 // Maintain correct CPU speed.
                 ticks -= waitticks;
-                sleep(Duration::from_millis(16));
+
+                // Frame limiter
+                let elapsed = frame_start.elapsed();
+                if elapsed < frame_duration {
+                    sleep(frame_duration - elapsed);
+                }
             }
             // TODO: Handle emulation exit, such as saving RAM to file...
             println!("\nkthxbai <3");
