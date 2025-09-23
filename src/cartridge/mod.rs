@@ -62,7 +62,7 @@ pub fn new(path: String) -> Box<dyn Cartridge> {
     let rom_data = std::fs::read(path.clone()).unwrap();
     let cart: Box<dyn Cartridge> = match CartridgeType::try_from(rom_data[0x147]).unwrap() {
         CartridgeType::RomOnly => Box::new(RomOnly::new(rom_data)),
-        CartridgeType::Mbc1 => Box::new(Mbc1::new(rom_data, vec![])),
+        CartridgeType::Mbc1 => Box::new(Mbc1::new(rom_data, vec![], false)),
         CartridgeType::Mbc1Ram | CartridgeType::Mbc1RamBattery => {
             let ram_size = match RamSize::try_from(rom_data[0x149]).unwrap() {
                 RamSize::Kb2Unused => 0,
@@ -73,7 +73,7 @@ pub fn new(path: String) -> Box<dyn Cartridge> {
                 RamSize::None => 0,
             };
             let ram = vec![0; ram_size];
-            Box::new(Mbc1::new(rom_data, ram))
+            Box::new(Mbc1::new(rom_data, ram , true))
         }
         //TODO: Implement other cartridge types.
         _ => {

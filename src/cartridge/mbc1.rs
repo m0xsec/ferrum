@@ -82,12 +82,16 @@ pub struct Mbc1 {
 }
 
 impl Mbc1 {
-    pub fn new(rom: Vec<u8>, ram: Vec<u8>) -> Self {
+    pub fn new(rom: Vec<u8>, ram: Vec<u8>, ram_mode: bool) -> Self {
         Self {
             rom,
             ram,
-            bank_mode: BankMode::Rom, // Default bank mode is ROM.
-            bank: 0x01,
+            bank_mode: if ram_mode {
+                BankMode::Ram
+            } else {
+                BankMode::Rom
+            },
+            bank: 0x00,
             ram_enabled: false,
         }
     }

@@ -25,6 +25,15 @@ pub struct Cpu {
 
     /// Halt flag, for stopping CPU operation.
     halt: bool,
+
+    /// Ticks
+    /// The DMG-01 has a 4.194304 MHz clock, and each instruction takes a variable number of cycles to execute.
+    /// Each cycle is 4 clock ticks, so the CPU runs at 1.048576 MHz.
+    /// This field keeps track of the number of clock ticks that have occurred.
+    /// This is used for timing purposes, such as for the timer and the LCD controller.
+    /// This field is incremented by the `cycle` method, and is used by the `cycle` method of the `Memory` trait.
+    /// This field is reset to 0 when the CPU is reset.
+    ticks: u32,
 }
 
 impl Cpu {
@@ -139,26 +148,40 @@ impl Cpu {
             boot_rom_enabled: true,
             ime: false,
             halt: false,
+            ticks: 0,
         }
     }
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
     pub fn cycle(&mut self) -> u32 {
-        //self._debug_print_state();
-        let mut ticks = 0;
-
-        // If CPU is halted, do nothing.
-        if !self.halt {
-            let op = self.fetch();
-            ticks += self.op_execute(op);
-        } else {
-            info!("CPU halted!");
-            ticks += 1;
+        // Handle interrupts first, if any.
+        let mut cycles = self.handle_interrupts();
+        if cycles > 0 {
+            self.ticks += cycles;
+            return cycles;
         }
 
-        ticks += self.handle_interrupts();
-        //println!("Ticks: {}", ticks);
-        self.mem.borrow_mut().cycle(ticks)
+        // If the CPU is halted, do nothing.
+        if self.halt {
+            self.ticks += 4;
+            return 4;
+        }
+
+        // Fetch the next opcode
+        let opcode = self.fetch();
+
+        // Decode and execute the opcode
+        let exec_cycles = self.op_execute(opcode);
+        cycles += exec_cycles;
+
+        cycles += self.mem.borrow_mut().cycle(cycles);
+
+        // Increment ticks
+        self.ticks += cycles;
+
+        
+
+        cycles
     }
 
     /// Dumps the current CPU Register values at the info Log level.

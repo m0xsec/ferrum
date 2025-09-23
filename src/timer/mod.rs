@@ -2,11 +2,12 @@ pub mod clock;
 
 use std::{cell::RefCell, rc::Rc};
 
+use log::warn;
+
 use crate::cpu::interrupts::{Flags, InterruptFlags};
 
 use self::clock::Clock;
 
-#[derive(Default)]
 struct Register {
     // This register is incremented at rate of 16384Hz (~16779Hz on SGB). Writing any value to this register resets it
     // to 00h.
@@ -41,7 +42,12 @@ impl Timer {
     pub fn new(if_: Rc<RefCell<InterruptFlags>>) -> Self {
         Timer {
             if_,
-            reg: Register::default(),
+            reg: Register {
+                div: 0x00,
+                tima: 0x00,
+                tma: 0x00,
+                tac: 0x00,
+            },
             div_clock: Clock::new(256),
             tma_clock: Clock::new(1024),
         }
@@ -49,12 +55,16 @@ impl Timer {
 
     pub fn get(&self, a: u16) -> u8 {
         match a {
-            0xff04 => self.reg.div,
+            0xff04 => {
+                warn!("Reading DIV register (0xFF04) returns value {:#02x}", self.reg.div);
+                self.reg.div
+            },
             0xff05 => self.reg.tima,
             0xff06 => self.reg.tma,
             0xff07 => self.reg.tac,
             _ => panic!("Unsupported address"),
         }
+
     }
 
     pub fn set(&mut self, a: u16, v: u8) {

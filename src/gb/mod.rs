@@ -121,7 +121,7 @@ impl GameBoy {
                     window
                         .update_with_buffer(viewport, SCREEN_WIDTH, SCREEN_HEIGHT)
                         .unwrap();
-                }
+               }
 
                 // Handle keyboard input.
                 // TODO: Handle Gameboy Joypad input.

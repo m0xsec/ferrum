@@ -129,7 +129,7 @@ impl Mmu {
     }
 
     pub fn ppu_get_viewport(&self) -> &Vec<u32> {
-        &self.ppu.viewport_buffer
+        &self.ppu.framebuffer
     }
 }
 
@@ -154,11 +154,11 @@ impl Memory for Mmu {
                 self.cartridge.read8(addr)
             }
             0x4000..=0x7FFF => self.cartridge.read8(addr),
-            0x8000..=0x9FFF => self.ppu.read8(addr),
+            0x8000..=0x9FFF => self.ppu.read_byte(addr),
             0xA000..=0xBFFF => self.cartridge.read8(addr),
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF],
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF],
-            0xFE00..=0xFE9F => self.ppu.read8(addr),
+            0xFE00..=0xFE9F => self.ppu.read_byte(addr),
             0xFF00..=0xFF7F => {
                 match addr {
                     // TODO: Implement the rest of the IO registers.
@@ -171,7 +171,7 @@ impl Memory for Mmu {
                     0xFF04..=0xFF07 => self.timer.get(addr),
 
                     // PPU Registers
-                    0xFF40..=0xFF4B => self.ppu.read8(addr),
+                    0xFF40..=0xFF4B => self.ppu.read_byte(addr),
 
                     // Stub LY, for testing.
                     //0xFF44 => 0x90,
@@ -199,11 +199,11 @@ impl Memory for Mmu {
         match addr {
             0x0000..=0x3FFF => self.cartridge.write8(addr, val),
             0x4000..=0x7FFF => self.cartridge.write8(addr, val),
-            0x8000..=0x9FFF => self.ppu.write8(addr, val),
+            0x8000..=0x9FFF => self.ppu.write_byte(addr, val),
             0xA000..=0xBFFF => self.cartridge.write8(addr, val),
             0xC000..=0xCFFF | 0xE000..=0xEFFF => self.wram0[addr as usize & 0x0FFF] = val,
             0xD000..=0xDFFF | 0xF000..=0xFDFF => self.wramx[addr as usize & 0x0FFF] = val,
-            0xFE00..=0xFE9F => self.ppu.write8(addr, val),
+            0xFE00..=0xFE9F => self.ppu.write_byte(addr, val),
             0xFF00..=0xFF7F => {
                 match addr {
                     //TODO: Implement the rest of the IO registers.
@@ -225,7 +225,27 @@ impl Memory for Mmu {
                     }
 
                     // PPU Registers
-                    0xFF40..=0xFF4B => self.ppu.write8(addr, val),
+                    0xFF40..=0xFF45 => self.ppu.write_byte(addr, val),
+                    
+
+                    0xFF46 => {
+                        // DMA Transfer
+                        let start_addr = (val as u16) << 8;
+                        let data: [u8; 0xA0] = (0..0xA0)
+                            .map(|i| self.read8(start_addr + i))
+                            .collect::<Vec<u8>>()
+                            .try_into()
+                            .unwrap();
+
+                        self.ppu.perform_dma_transfer(&data);
+
+                        info!("DMA Transfer from {:#04x} to OAM", start_addr);
+
+                    }
+
+                    0xFF47..=0xFF4B => self.ppu.write_byte(addr, val),
+
+                    
 
                     _ => self.io[addr as usize - 0xFF00] = val,
                 }
