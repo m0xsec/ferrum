@@ -141,7 +141,7 @@ impl Memory for Mbc1 {
                 self.bank = (self.bank & 0x60) | if b == 0x00 { 0x01 } else { b };
             }
             0x4000..=0x5fff => {
-                self.bank = self.bank & 0x9f | ((val & 0x03) << 5);
+                self.bank = (self.bank & 0x1f) | ((val & 0x03) << 5);
             }
             0x6000..=0x7fff => {
                 self.bank_mode = match val {
@@ -176,3 +176,31 @@ impl Memory for Mbc1 {
 }
 
 impl Cartridge for Mbc1 {}
+
+#[cfg(test)]
+mod tests {
+    use super::Mbc1;
+    use crate::mmu::memory::Memory;
+
+    #[test]
+    fn clears_upper_rom_bank_bits_when_requested() {
+        // Provide enough ROM for all potential banks we touch in this test.
+        let mut rom = vec![0u8; 0x4000 * 0x62];
+        for bank in 0..0x62 {
+            rom[bank * 0x4000] = bank as u8;
+        }
+
+        let mut mbc1 = Mbc1::new(rom, vec![0; 0x8000]);
+
+        // Defaults to bank 1 in the switchable ROM area.
+        assert_eq!(mbc1.read8(0x4000), 0x01);
+
+        // Set the upper bank bits to 0b11 (banks 0x60-0x7f when lower bits are 0x01).
+        mbc1.write8(0x4000, 0x03);
+        assert_eq!(mbc1.read8(0x4000), 0x61);
+
+        // Writing zero should clear those upper bits, returning us to bank 0x01.
+        mbc1.write8(0x4000, 0x00);
+        assert_eq!(mbc1.read8(0x4000), 0x01);
+    }
+}
