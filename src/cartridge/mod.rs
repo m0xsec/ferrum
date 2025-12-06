@@ -11,7 +11,7 @@ pub trait Cartridge: Memory {
     /// Cartridge Tile
     fn title(&self) -> String {
         let mut title = String::new();
-        for i in 0x134..0x143 {
+        for i in 0x134..=0x143 {
             match self.read8(i) {
                 0x00 => break,
                 _ => title.push(self.read8(i) as char),
