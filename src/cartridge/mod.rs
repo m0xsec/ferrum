@@ -6,6 +6,17 @@ use crate::mmu::memory::Memory;
 
 use self::{header::*, mbc::*, mbc1::*};
 
+fn ram_size_bytes(size: RamSize) -> usize {
+    match size {
+        RamSize::None => 0,
+        RamSize::Kb2Unused => 0x800,
+        RamSize::Kb8 => 0x2000,
+        RamSize::Kb32 => 0x8000,
+        RamSize::Kb128 => 0x20000,
+        RamSize::Kb64 => 0x10000,
+    }
+}
+
 /// Cartridge represents a Gameboy ROM
 pub trait Cartridge: Memory {
     /// Cartridge Tile
@@ -67,9 +78,15 @@ pub trait Cartridge: Memory {
 /// Initialize a new Cartridge.
 pub fn new(path: String) -> Box<dyn Cartridge> {
     let rom_data = std::fs::read(path.clone()).unwrap();
-    let cart: Box<dyn Cartridge> = match CartridgeType::try_from(rom_data[0x147]).unwrap() {
+    let cartridge_type = CartridgeType::try_from(rom_data[0x147]).unwrap();
+    let ram_size = RamSize::try_from(rom_data[0x149]).unwrap();
+    let ram = ram_size_bytes(ram_size);
+
+    let cart: Box<dyn Cartridge> = match cartridge_type {
         CartridgeType::RomOnly => Box::new(RomOnly::new(rom_data)),
-        CartridgeType::Mbc1 => Box::new(Mbc1::new(rom_data, vec![])),
+        CartridgeType::Mbc1 | CartridgeType::Mbc1Ram | CartridgeType::Mbc1RamBattery => {
+            Box::new(Mbc1::new(rom_data, vec![0; ram]))
+        }
         //TODO: Implement other cartridge types.
         _ => todo!("Unsupported cartridge type: {:?}", path),
     };
