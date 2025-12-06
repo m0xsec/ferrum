@@ -42,10 +42,20 @@ pub trait Cartridge: Memory {
 
     /// New Licensee Code
     fn new_licensee_code(&self) -> NewLicenseeCode {
-        NewLicenseeCode::try_from(
-            ((self.read8(0x144) as u16) << 8 | self.read8(0x145) as u16) as u8,
-        )
-        .unwrap()
+        fn from_ascii_hex(n: u8) -> Option<u8> {
+            match n {
+                b'0'..=b'9' => Some(n - b'0'),
+                b'a'..=b'f' => Some(10 + (n - b'a')),
+                b'A'..=b'F' => Some(10 + (n - b'A')),
+                _ => None,
+            }
+        }
+
+        let upper = from_ascii_hex(self.read8(0x144)).expect("invalid licensee code");
+        let lower = from_ascii_hex(self.read8(0x145)).expect("invalid licensee code");
+        let code = (upper << 4) | lower;
+
+        NewLicenseeCode::try_from(code).unwrap()
     }
 
     /// Old Licensee Code
