@@ -107,19 +107,29 @@ impl Mbc1 {
         };
         bank as usize
     }
+
+    fn fixed_rom_bank(&self) -> usize {
+        match self.bank_mode {
+            BankMode::Rom => 0x00,
+            BankMode::Ram => (self.bank & 0x60) as usize,
+        }
+    }
 }
 
 impl Memory for Mbc1 {
     fn read8(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x3fff => self.rom[addr as usize],
+            0x0000..=0x3fff => {
+                let bank = self.fixed_rom_bank();
+                self.rom[bank * 0x4000 + addr as usize]
+            }
             0x4000..=0x7fff => {
                 let bank = self.rom_bank();
                 let offset = addr as usize - 0x4000;
                 self.rom[bank * 0x4000 + offset]
             }
             0xa000..=0xbfff => {
-                if self.ram_enabled {
+                if self.ram_enabled && !self.ram.is_empty() {
                     let bank = self.ram_bank();
                     let offset = addr as usize - 0xa000;
                     self.ram[bank * 0x2000 + offset]
@@ -151,7 +161,7 @@ impl Memory for Mbc1 {
                 };
             }
             0xa000..=0xbfff => {
-                if self.ram_enabled {
+                if self.ram_enabled && !self.ram.is_empty() {
                     let bank = self.ram_bank();
                     let offset = addr as usize - 0xa000;
                     self.ram[bank * 0x2000 + offset] = val;
