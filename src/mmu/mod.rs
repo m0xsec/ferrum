@@ -259,15 +259,13 @@ impl Memory for Mmu {
     fn cycle(&mut self, ticks: u32) -> u32 {
         // TODO: Cycle the other components, APU?
 
-        let cpu_ticks = ticks;
-
         // Cycle the timer.
-        self.timer.cycle(cpu_ticks);
+        self.timer.cycle(ticks);
 
         // Cycle the PPU.
-        let gpu_ticks = self.ppu.cycle(cpu_ticks);
+        self.ppu.cycle(ticks);
 
-        // Calculate total ticks from each subsystem cycle
-        cpu_ticks + gpu_ticks
+        // Only CPU ticks should be counted toward timing.
+        ticks
     }
 }
