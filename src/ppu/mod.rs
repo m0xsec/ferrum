@@ -1,69 +1,40 @@
 use std::{cell::RefCell, rc::Rc};
 
-use log::warn;
+use crate::cpu::interrupts::{Flags, InterruptFlags};
+use crate::mmu::memory::Memory;
 
-use crate::{
-    cpu::interrupts::{Flags, InterruptFlags},
-    mmu::memory::Memory,
-};
-
-use self::fetcher::Fetcher;
-
-mod fetcher;
-mod fifo;
-
-// TODO: Look at doing Pixel FIFO - Rendering one line at a time is fine in most cases for now.
-// Only a few games actually require pixel FIFO.
-// FIFO ref: https://blog.tigris.fr/2019/09/15/writing-an-emulator-the-first-pixel/
-// https://gbdev.io/pandocs/pixel_fifo.html
-
-/// The Gameboy outputs a 160x144 pixel LCD screen.
+/// The Game Boy outputs a 160x144 pixel LCD screen.
 pub const SCREEN_WIDTH: usize = 160;
 pub const SCREEN_HEIGHT: usize = 144;
 pub const SCREEN_PIXELS: usize = SCREEN_WIDTH * SCREEN_HEIGHT;
 
-/// The Gameboy has three layers for rendering. Background, Window, and Sprites.
-pub const BG_WIDTH: usize = 256;
-pub const BG_HEIGHT: usize = 256;
-pub const BG_PIXELS: usize = BG_WIDTH * BG_HEIGHT;
-pub const BG_TILES: usize = 32 * 32;
-pub const BG_MAP: usize = 32 * 32;
-pub const WIN_WIDTH: usize = 256;
-pub const WIN_HEIGHT: usize = 256;
-pub const WIN_PIXELS: usize = WIN_WIDTH * WIN_HEIGHT;
-pub const WIN_TILES: usize = 32 * 32;
-pub const WIN_MAP: usize = 32 * 32;
-
-/// The PPU had varying cycles depending on the mode it was in.
-const ACCESS_OAM_CYCLES: u32 = 21;
-const ACCESS_VRAM_CYCLES: u32 = 43;
-const HBLANK_CYCLES: u32 = 50;
-const VBLANK_CYCLES: u32 = 114;
-
-/// PPU also handles VRAM and OAM memory.
 pub const VRAM_START: u16 = 0x8000;
 pub const VRAM_END: u16 = 0x9FFF;
 pub const VRAM_SIZE: usize = 0x2000;
-pub const OAM_SIZE: usize = 0xA0;
+
 pub const OAM_START: u16 = 0xFE00;
 pub const OAM_END: u16 = 0xFE9F;
+pub const OAM_SIZE: usize = 0xA0;
 
-/// The PPU always returned 0xFF for undefined reads.
+const SCANLINE_CYCLES: u32 = 456;
+const OAM_CYCLES: u32 = 80;
+const TRANSFER_CYCLES: u32 = 172;
 const UNDEFINED_READ: u8 = 0xFF;
 
-/// Gameboy DMG-01 grey scale colors.
-const BLACK: u32 = 0x00000000u32;
-const DARK_GRAY: u32 = 0x00555555u32;
-const LIGHT_GRAY: u32 = 0x00AAAAAAu32;
-const WHITE: u32 = 0x00FFFFFFu32;
+const BLACK: u32 = 0x00000000;
+const DARK_GRAY: u32 = 0x00555555;
+const LIGHT_GRAY: u32 = 0x00AAAAAA;
+const WHITE: u32 = 0x00FFFFFF;
 
-/// Gameboy DMG-01 colors
-/// https://gbdev.io/pandocs/Palettes.html
-/// Value   Color
-/// 0       White
-/// 1       Light Gray
-/// 2       Dark Gray
-/// 3       Black
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PpuMode {
+    HBlank,
+    VBlank,
+    OamScan,
+    Drawing,
+}
+
+#[derive(Clone, Copy)]
 enum Color {
     White,
     LightGray,
@@ -72,7 +43,6 @@ enum Color {
 }
 
 impl Color {
-    /// Convert a u8 to a Color
     fn from_u8(val: u8) -> Self {
         match val {
             0 => Color::White,
@@ -83,9 +53,7 @@ impl Color {
         }
     }
 
-    /// Convert a Color to a u32
-    /// This is used to convert from Gameboy colors to u32 colors for rendering.
-    fn to_u32(&self) -> u32 {
+    fn to_u32(self) -> u32 {
         match self {
             Color::White => WHITE,
             Color::LightGray => LIGHT_GRAY,
@@ -95,563 +63,453 @@ impl Color {
     }
 }
 
-/// Tiles are 8x8 pixels.
-/// 2 bits are needed to store color data for a single pixel.
-/// 2 bytes make up a row of 8 pixels.
-/// Each bit of the first byte is combined with the bit at
-/// the same position of the second byte to calculate a color number:
-///
-/// 0xA5:    1  0  1  0  0  1  0  1
-/// 0xC3:    1  1  0  0  0  0  1  1
-///
-/// Encoded: 11 10 01 00 00 01 10 11
-///
-/// In memory, Tiles are stored as 16 bytes using the encoded method above.
-/// The first 2 bytes represent the first row of 8 pixels, the next 2 the second row, etc.
-/// https://pixelbits.16-b.it/GBEDG/ppu/#The-Concept-of-Tiles
-#[derive(Clone, Copy)]
-struct Tile {
-    data: [u8; 16],
-}
-
-impl Tile {
-    /// Create a new Tile from a slice of 16 bytes.
-    fn new(data: &[u8]) -> Self {
-        let mut tile = Tile { data: [0; 16] };
-        tile.data.copy_from_slice(data);
-        tile
-    }
-    /// Get the color of a pixel at a given x,y coordinate.
-    fn get_pixel(&self, x: usize, y: usize) -> Color {
-        let byte1 = self.data[y * 2];
-        let byte2 = self.data[y * 2 + 1];
-
-        let bit1 = (byte1 >> (7 - x)) & 0x01;
-        let bit2 = (byte2 >> (7 - x)) & 0x01;
-
-        Color::from_u8(bit1 | (bit2 << 1))
-    }
-}
-
-/// Each sprite can be 8x8 or 8x16 pixels (1x1 tile or 1x2 tiles) depending on the sprite size flag (LCDC.2).
-/// NOTE: This is universal for all sprites in the loaded ROM.
-#[derive(Default, Clone, Copy)]
-enum SpriteSize {
-    /// 8x8 pixels (1x1 tile)
-    #[default]
-    Small,
-
-    /// 8x16 pixels (1x2 tiles)
-    Large,
-}
-
-/// The sprite layer is made up of 40 sprites that are stored in OAM.
-/// Each sprite can be 8x8 or 8x16 pixels (1x1 tile or 1x2 tiles) depending on the sprite size flag (LCDC.2).
-/// Sprites are rendered on top of the background and window layers.
-/// Sprites can be rendered behind the background and window layers by setting the priority flag (OAM.7).
-/// Sprites can be flipped horizontally and vertically.
-/// Sprites can be colored using one of the four palettes.
-/// Sprites can be hidden by setting the hidden flag (OAM.1).
-/// Sprites can be moved off screen by setting the x position to 0 or 160, or the y position to 0 or 144.
-#[derive(Clone)]
-struct Sprite {
-    /// The x position of the sprite.
-    x: u8,
-
-    /// The y position of the sprite.
-    y: u8,
-
-    /// The tile number of the sprite.
-    tile_id: u8,
-
-    /// The attributes of the sprite (Sprite Flags)
-    /// Bit 7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
-    /// Bit 6   Y flip          (0=Normal, 1=Vertically mirrored)
-    /// Bit 5   X flip          (0=Normal, 1=Horizontally mirrored)
-    /// Bit 4   Palette number  **DMG Only* (0=OBP0, 1=OBP1)
-    /// Bit 0-3 CGB Only
-    attr: u8,
-    priority: bool,
-    y_flip: bool,
-    x_flip: bool,
-    palette: bool,
-
-    /// The sprite size (determined by the LCDC.2 flag).
-    size: SpriteSize,
-
-    /// The tile data of the sprite.
-    tile: Vec<Tile>,
-}
-
-impl Sprite {
-    /// Create a new Sprite from a slice of 4 bytes.
-    /// Also using the sprite size flag (LCDC.2) to determine the sprite size.
-    fn new(data: &[u8], size: SpriteSize) -> Self {
-        let mut tile = Vec::new();
-        match size {
-            SpriteSize::Small => {
-                tile.push(Tile::new(&[0; 16]));
-            }
-            SpriteSize::Large => {
-                tile.push(Tile::new(&[0; 16]));
-                tile.push(Tile::new(&[0; 16]));
-            }
-        }
-        let priority = data[3] & 0x80 == 0x80;
-        let y_flip = data[3] & 0x40 == 0x40;
-        let x_flip = data[3] & 0x20 == 0x20;
-        let palette = data[3] & 0x10 == 0x10;
-        Self {
-            x: data[0],
-            y: data[1],
-            tile_id: data[2],
-            attr: data[3],
-            priority,
-            y_flip,
-            x_flip,
-            palette,
-            size,
-            tile,
-        }
-    }
-}
-
-/// During a scanline, the PPU enters multiple different modes.
-/// There are 4 modes, each with a specific function.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum PpuMode {
-    /// Mode 0 - H-Blank
-    /// This mode takes up the remainder of the scanline after the Drawing Mode finishes.
-    /// This is more or less “padding” the duration of the scanline to a total of 456 T-Cycles.
-    /// The PPU effectively pauses during this mode.
-    HBlank,
-
-    /// Mode 1 - V-Blank
-    /// This mode is similar to H-Blank, in that it the PPU does not render to the LCD during its duration.
-    /// However, instead of taking place at the end of every scanline, it is a much longer period at the
-    /// end of every frame.
-    ///
-    /// As the Gameboy has a vertical resolution of 144 pixels, it would be expected that the amount of
-    /// scanlines the PPU handles would be equal - 144 scanlines. However, this is not the case.
-    /// In reality there are 154 scanlines, the 10 last of which being “pseudo-scanlines” during which
-    /// no pixels are drawn as the PPU is in the V-Blank state during their duration.
-    /// A V-Blank scanline takes the same amount of time as any other scanline - 456 T-Cycles.
-    VBlank,
-
-    /// Mode 2 - OAM Scan
-    /// This mode is entered at the start of every scanline (except for V-Blank) before pixels are actually drawn to the screen.
-    /// During this mode the PPU searches OAM memory for sprites that should be rendered on the current scanline and stores them in a buffer.
-    /// This procedure takes a total amount of 80 T-Cycles, meaning that the PPU checks a new OAM entry every 2 T-Cycles.
-    ///
-    /// A sprite is only added to the buffer if all of the following conditions apply:
-    ///     * Sprite X-Position must be greater than 0
-    ///     * LY + 16 must be greater than or equal to Sprite Y-Position
-    ///     * LY + 16 must be less than Sprite Y-Position + Sprite Height (8 in Normal Mode, 16 in Tall-Sprite-Mode)
-    ///     * The amount of sprites already stored in the OAM Buffer must be less than 10
-    OamScan,
-
-    /// Mode 3 - Drawing
-    /// The Drawing Mode is where the PPU transfers pixels to the LCD.
-    /// The duration of this mode changes depending on multiple variables,
-    /// such as background scrolling, the amount of sprites on the scanline, whether or not the window should be rendered, etc.
-    Drawing,
-}
-
-/// LCD Control Register (LCDC - $FF40)
-/// Bit 7  LCD Display Enable
-///     Setting this bit to 0 disables the PPU entirely. The screen is turned off.
-///
-/// Bit 6  Window Tile Map Select
-///     If set to 1, the Window will use the background map located at $9C00-$9FFF. Otherwise, it uses $9800-$9BFF.
-///
-/// Bit 5  Window Display Enable
-///     Setting this bit to 0 hides the window layer entirely.
-///
-/// Bit 4  Tile Data Select
-///     If set to 1, fetching Tile Data uses the 8000 method. Otherwise, the 8800 method is used.
-///
-/// Bit 3  BG Tile Map Select
-///     If set to 1, the Background will use the background map located at $9C00-$9FFF. Otherwise, it uses $9800-$9BFF.
-///
-/// Bit 2  Sprite Size
-///     If set to 1, sprites are displayed as 1x2 Tile (8x16 pixel) object. Otherwise, they're 1x1 Tile.
-///
-/// Bit 1  Sprite Enable
-///     Sprites are only drawn to screen if this bit is set to 1.
-///
-/// Bit 0  BG/Window Enable
-///     If this bit is set to 0, neither Background nor Window tiles are drawn. Sprites are unaffected
+#[derive(Default)]
 struct Lcdc {
     data: u8,
 }
 
 impl Lcdc {
-    fn new() -> Self {
-        Self { data: 0x00 }
-    }
-
     fn set(&mut self, data: u8) {
         self.data = data;
     }
 
-    /// LCDC.7 - LCD Display Enable
-    /// This bit controls whether or not the PPU is active at all.
-    /// The PPU only operates while this bit is set to 1.
-    /// As soon as it is set to 0 the screen goes blank and the PPU stops all operation.
-    /// The PPU also undergoes a “reset”.
     fn lcd_display_enable(&self) -> bool {
         self.data & (1 << 7) != 0
     }
 
-    /// LCDC.6 - Window Tile Map Select
-    /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Window layer.
-    /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
     fn window_tile_map_select(&self) -> bool {
-        self.data * (1 << 6) != 0
+        self.data & (1 << 6) != 0
     }
 
-    /// LCDC.5 - Window Display Enable
-    /// This bit controls whether or not the Window layer is rendered at all.
-    /// If it is set to 0, everything Window-related can be ignored, as it is not rendered.
-    /// Otherwise the Window renders as normal.
     fn window_display_enable(&self) -> bool {
         self.data & (1 << 5) != 0
     }
 
-    /// LCDC.4 - Tile Data Select
-    /// This bit determines which addressing mode to use for fetching Tile Data.
-    /// If it is set to 1, the 8000 method is used. Otherwise, the 8800 method is used.
     fn tile_data_select(&self) -> bool {
-        self.data * (1 << 4) != 0
+        self.data & (1 << 4) != 0
     }
 
-    /// LCDC.3 - BG Tile Map Select
-    /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Background layer.
-    /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
     fn bg_tile_map_select(&self) -> bool {
         self.data & (1 << 3) != 0
     }
 
-    /// LCDC.2 - Sprite Size
-    /// As mentioned in the description of sprites above, there is a certain option which can enable “Tall Sprite Mode”.
-    /// Setting this bit to 1 does so. In this mode, each sprite consists of two tiles on top of each other rather than one.
     fn sprite_size(&self) -> bool {
         self.data & (1 << 2) != 0
     }
 
-    /// LCDC.1 - Sprite Enable
-    /// This bit controls whether or not sprites are rendered at all.
-    /// Setting this bit to 0 hides all sprites, otherwise they are rendered as normal.
     fn sprite_enable(&self) -> bool {
         self.data & (1 << 1) != 0
     }
 
-    /// LCDC.0 - BG/Window Enable
-    /// This bit controls whether or not Background and Window tiles are drawn.
-    /// If it is set to 0, no Background or Window tiles are drawn and all pixels are drawn as white (Color 0).
-    /// The only exception to this are sprites, as they are unaffected.
     fn bg_window_enable(&self) -> bool {
-        self.data & (1 << 0) != 0
+        self.data & 0x01 != 0
     }
 }
 
-/// LCD Status Register (STAT - $FF41)
-/// Bit 7   Unused (Always returns 1).
-///
-/// Bit 6   LYC=LY STAT Interrupt Enable
-///     Setting this bit to 1 enables the "LYC=LY condition" to trigger a STAT interrupt.
-///
-/// Bit 5   Mode 2 STAT Interrupt Enable
-///     Setting this bit to 1 enables the "mode 2 condition" to trigger a STAT interrupt.
-///
-/// Bit 4   Mode 1 STAT Interrupt Enable
-///    Setting this bit to 1 enables the "mode 1 condition" to trigger a STAT interrupt.
-///
-/// Bit 3   Mode 0 STAT Interrupt Enable
-///    Setting this bit to 1 enables the "mode 0 condition" to trigger a STAT interrupt.
-///
-/// Bit 2   Coincidence Flag
-///    This bit is set by the PPU if the value of the LY register is equal to that of the LYC register.
-///
-/// Bit 1-0 PPU Mode
-///    These two bits are set by the PPU depending on which mode it is in.
-///        * 0 : H-Blank
-///        * 1 : V-Blank
-///        * 2 : OAM Scan
-///        * 3 : Drawing
+#[derive(Default)]
 struct Stat {
     data: u8,
 }
 
 impl Stat {
-    fn new() -> Self {
-        Self { data: 0x00 }
-    }
-
     fn set(&mut self, data: u8) {
-        self.data = data;
+        // Only the interrupt enable bits (6-3) are writable by the CPU.
+        self.data = (self.data & 0x07) | (data & 0xF8);
+        self.data |= 0x80; // bit7 always 1
     }
 
-    /// Update the STAT register based on the current state of the PPU.
-    fn update(&mut self, ppu_mode: PpuMode, ppu_ly: u8, ppu_lyc: u8) {
-        let mut data = self.data;
+    fn update(&mut self, mode: PpuMode, ly: u8, lyc: u8) {
+        let mut value = self.data & 0xF8;
+        value |= 0x80;
 
-        // Bit 2 - Coincidence Flag
-        // This bit is set by the PPU if the value of the LY register is equal to that of the LYC register.
-        if ppu_ly == ppu_lyc {
-            data |= 1 << 2;
-        } else {
-            data &= !(1 << 2);
+        if ly == lyc {
+            value |= 1 << 2;
         }
 
-        // Bit 1-0 - PPU Mode
-        // These two bits are set by the PPU depending on which mode it is in.
-        // 0 : H-Blank
-        // 1 : V-Blank
-        // 2 : OAM Scan
-        // 3 : Drawing
-        match ppu_mode {
-            PpuMode::HBlank => {
-                data &= !(1 << 1);
-                data &= !(1 << 0);
-            }
-            PpuMode::VBlank => {
-                data &= !(1 << 1);
-                data |= 1 << 0;
-            }
-            PpuMode::OamScan => {
-                data |= 1 << 1;
-                data &= !(1 << 0);
-            }
-            PpuMode::Drawing => {
-                data |= 1 << 1;
-                data |= 1 << 0;
-            }
-        }
+        value |= match mode {
+            PpuMode::HBlank => 0,
+            PpuMode::VBlank => 1,
+            PpuMode::OamScan => 2,
+            PpuMode::Drawing => 3,
+        };
 
-        self.data = data;
+        self.data = value;
     }
 
-    /// STAT.6 - LYC=LY STAT Interrupt Enable
-    /// Setting this bit to 1 enables the "LYC=LY condition" to trigger a STAT interrupt.
     fn lyc_ly_stat_interrupt_enable(&self) -> bool {
         self.data & (1 << 6) != 0
     }
 
-    /// STAT.5 - Mode 2 STAT Interrupt Enable
-    /// Setting this bit to 1 enables the "mode 2 condition" to trigger a STAT interrupt.
     fn mode_2_stat_interrupt_enable(&self) -> bool {
         self.data & (1 << 5) != 0
     }
 
-    /// STAT.4 - Mode 1 STAT Interrupt Enable
-    /// Setting this bit to 1 enables the "mode 1 condition" to trigger a STAT interrupt.
     fn mode_1_stat_interrupt_enable(&self) -> bool {
         self.data & (1 << 4) != 0
     }
 
-    /// STAT.3 - Mode 0 STAT Interrupt Enable
-    /// Setting this bit to 1 enables the "mode 0 condition" to trigger a STAT interrupt.
     fn mode_0_stat_interrupt_enable(&self) -> bool {
         self.data & (1 << 3) != 0
     }
-
-    /// STAT.2 - Coincidence Flag
-    /// This bit is set by the PPU if the value of the LY register is equal to that of the LYC register.
-    fn coincidence_flag(&self) -> bool {
-        self.data & (1 << 2) != 0
-    }
-
-    /// STAT.1-0 - PPU Mode
-    /// These two bits are set by the PPU depending on which mode it is in.
-    ///     * 0 : H-Blank
-    ///     * 1 : V-Blank
-    ///     * 2 : OAM Scan
-    ///     * 3 : Drawing
-    fn ppu_mode(&self) -> u8 {
-        self.data & 0x03
-    }
 }
 
-/// PPU (Picture Processing Unit)
+#[derive(Clone, Copy)]
+struct SpriteAttrs {
+    priority: bool,
+    y_flip: bool,
+    x_flip: bool,
+    palette1: bool,
+}
+
 pub struct Ppu {
-    /// The PPU has 3 layers, Background, Window, and Sprites.
-    /// Each layer can be enabled or disabled.
-    bg_enabled: bool,
-    window_enabled: bool,
-    sprite_enabled: bool,
-
-    /// Is the disable enabled? Use this to track LCD on/off state.
-    ldc_on: bool,
-
-    /// The background layer is made up of 32x32 tiles (256x256 pixels).
-    /// The Gameboy can only display 20x18 tiles (160x144 pixels) at a time (this is the viewport).
-    /// The offsets of the viewport are determined by the scroll registers (SCX, SCY).
-    bg_tiles: Vec<Tile>,
-
-    /// The window layer is made up of 32x32 tiles (256x256 pixels).
-    /// The Gameboy can only display 20x18 tiles (160x144 pixels) at a time (this is the viewport).
-    /// The offsets of the viewport are determined by the window position registers (WX, WY).
-    /// The window layer is rendered on top of the background layer, think of it like an overlay.
-    window_tiles: Vec<Tile>,
-
-    /// The sprite layer is made up of 40 sprites that are stored in OAM.
-    /// Each sprite can be 8x8 or 8x16 pixels (1x1 or 1x2 Tiles) depending on the sprite size flag (LCDC.2).
-    sprites: Vec<Sprite>,
-
-    /// Background Maps
-    /// These keep track of the order tiles should be rendered in for the background and window layers.
-    /// The VRAM sections $9800-$9BFF and $9C00-$9FFF each contain one of these background maps.
-    /// The background map is made up of 32x32 bytes, representing tile numbers, organized row by row.
-    background_map: Vec<u8>,
-    window_map: Vec<u8>,
-
-    /// The current PPU Mode
-    mode: PpuMode,
-
-    /// LCD Control Register (LCDC)
-    lcdc: Lcdc,
-
-    /// LCD Status Register (STAT)
-    stat: Stat,
-
-    /// LY Register - LCDC Y-Coordinate - ($FF44)
-    /// Indicates the current scanline (0-153).
-    /// Values 144-153 indicate the V-Blank period.
-    ly: u8,
-
-    /// LYC Register - LY Compare - ($FF45)
-    /// The Game Boy constantly compares the value of the LYC and LY registers.
-    /// When both values are identical, the “LYC=LY” flag in the STAT register is set
-    /// and (if enabled) a STAT interrupt is requested.
-    lyc: u8,
-
-    /// Scroll X Register - SCX - ($FF43)
-    scx: u8,
-
-    /// Scroll Y Register - SCY - ($FF42)
-    scy: u8,
-
-    /// Window X Position - WX - ($FF4B)
-    wx: u8,
-
-    /// Window Y Position - WY - ($FF4A)
-    wy: u8,
-
-    /// Background Palette Register - BGP - ($FF47)
-    bgp: u8,
-
-    /// Object Palette 0 Register - OBP0 - ($FF48)
-    obp0: u8,
-
-    /// Object Palette 1 Register - OBP1 - ($FF49)
-    obp1: u8,
-
-    /// Pixel FIFO Fetcher
-    fetcher: Fetcher,
-
-    /// Keep track of the number of ticks for the current line.
-    ticks: u32,
-
-    /// Amount of pixels already rendered for the current line.
-    x: u8,
-
-    /// SCX will require us to drop some pixels.
-    to_drop: u8,
-
-    /// Is set to true when a window fetch is in progress.
-    window_fetch: bool,
-
-    /// The PPU handles VRAM and OAM memory.
-    /// VRAM is used to store the background and window tiles.
-    /// OAM is used to store the sprite data.
     vram: Rc<RefCell<[u8; VRAM_SIZE]>>,
     oam: Rc<RefCell<[u8; OAM_SIZE]>>,
-
-    /// Reference to interrupts
     if_: Rc<RefCell<InterruptFlags>>,
 
-    /// Rendering buffer of the viewport.
-    /// u32 vector of size 160x144. Each u32 represents the color of a pixel.
-    /// buffer is a 2D vector, [y][x]
+    lcdc: Lcdc,
+    stat: Stat,
+
+    scy: u8,
+    scx: u8,
+    ly: u8,
+    lyc: u8,
+    wy: u8,
+    wx: u8,
+    bgp: u8,
+    obp0: u8,
+    obp1: u8,
+
+    mode: PpuMode,
+    dots: u32,
+    window_line: u8,
+    lcd_enabled: bool,
+
     pub viewport_buffer: Vec<Vec<u32>>,
     pub updated: bool,
 }
 
 impl Ppu {
     pub fn new(if_: Rc<RefCell<InterruptFlags>>) -> Self {
-        let mut vram = Rc::new(RefCell::new([0; VRAM_SIZE]));
-        let mut oam = Rc::new(RefCell::new([0; OAM_SIZE]));
-        let fetcher = Fetcher::new(vram.clone(), oam.clone());
         Self {
-            bg_enabled: false,
-            window_enabled: false,
-            sprite_enabled: false,
-            ldc_on: false,
-            bg_tiles: vec![Tile::new(&[0; 16]); BG_TILES],
-            window_tiles: vec![Tile::new(&[0; 16]); WIN_TILES],
-            //sprites: vec![Sprite::new(&[0; 4], SpriteSize::Small); 40],
-            sprites: vec![],
-            background_map: vec![0; BG_MAP],
-            window_map: vec![0; WIN_MAP],
-            mode: PpuMode::OamScan,
-            lcdc: Lcdc::new(),
-            stat: Stat::new(),
-            ly: 0x00,
-            lyc: 0x00,
-            scx: 0x00,
-            scy: 0x00,
-            wx: 0x00,
-            wy: 0x00,
-            bgp: 0x00,
-            obp0: 0x00,
-            obp1: 0x00,
-            fetcher,
-            ticks: 0,
-            x: 0,
-            to_drop: 0,
-            window_fetch: false,
-            vram,
-            oam,
+            vram: Rc::new(RefCell::new([0; VRAM_SIZE])),
+            oam: Rc::new(RefCell::new([0; OAM_SIZE])),
             if_,
-            //viewport_buffer: vec![BLACK; SCREEN_PIXELS],
-            viewport_buffer: vec![vec![BLACK; SCREEN_WIDTH]; SCREEN_HEIGHT],
+            lcdc: Lcdc::default(),
+            stat: Stat { data: 0x80 },
+            scy: 0,
+            scx: 0,
+            ly: 0,
+            lyc: 0,
+            wy: 0,
+            wx: 0,
+            bgp: 0,
+            obp0: 0,
+            obp1: 0,
+            mode: PpuMode::OamScan,
+            dots: 0,
+            window_line: 0,
+            lcd_enabled: false,
+            viewport_buffer: vec![vec![WHITE; SCREEN_WIDTH]; SCREEN_HEIGHT],
             updated: false,
         }
     }
 
-    /// Initialize sprites vector once we know the sprite size.
-    fn init_sprites(&mut self, size: SpriteSize) {
-        self.sprites = vec![Sprite::new(&[0; 4], size); 40];
+    fn request_stat_if(&mut self, condition: bool) {
+        if condition {
+            self.if_.borrow_mut().set(Flags::LCDStat);
+        }
+    }
+
+    fn handle_lyc(&mut self) {
+        if self.ly == self.lyc && self.stat.lyc_ly_stat_interrupt_enable() {
+            self.if_.borrow_mut().set(Flags::LCDStat);
+        }
+    }
+
+    fn disable_lcd(&mut self) {
+        self.lcd_enabled = false;
+        self.mode = PpuMode::HBlank;
+        self.dots = 0;
+        self.ly = 0;
+        self.window_line = 0;
+        self.stat.update(self.mode, self.ly, self.lyc);
+    }
+
+    fn enable_lcd(&mut self) {
+        self.lcd_enabled = true;
+        self.mode = PpuMode::OamScan;
+        self.dots = 0;
+        self.ly = 0;
+        self.window_line = 0;
+        self.stat.update(self.mode, self.ly, self.lyc);
+        self.request_stat_if(self.stat.mode_2_stat_interrupt_enable());
+        self.handle_lyc();
+    }
+
+    fn fetch_tile_pixel(
+        &self,
+        tile_id: u8,
+        tile_line: u8,
+        x_in_tile: u8,
+        unsigned_mode: bool,
+    ) -> u8 {
+        let base = if unsigned_mode {
+            0x8000u16 + tile_id as u16 * 16
+        } else {
+            let id = tile_id as i8 as i16;
+            (0x9000i32 + (id as i32) * 16) as u16
+        };
+
+        let addr = base + tile_line as u16 * 2;
+        let vram = self.vram.borrow();
+        let lo = vram[addr as usize - VRAM_START as usize];
+        let hi = vram[addr as usize + 1 - VRAM_START as usize];
+
+        let bit = 7 - x_in_tile;
+        ((lo >> bit) & 1) | (((hi >> bit) & 1) << 1)
+    }
+
+    fn map_palette(&self, palette: u8, color_id: u8) -> Color {
+        let shade = (palette >> (color_id * 2)) & 0x03;
+        Color::from_u8(shade)
+    }
+
+    fn collect_line_sprites(&self) -> Vec<(u8, u8, u8, SpriteAttrs)> {
+        if !self.lcdc.sprite_enable() {
+            return Vec::new();
+        }
+
+        let sprite_height = if self.lcdc.sprite_size() { 16 } else { 8 };
+        let mut sprites = Vec::new();
+
+        for i in 0..40 {
+            let base = i * 4;
+            let data = self.oam.borrow();
+            let y = data[base] as i16 - 16;
+            let x = data[base + 1] as i16 - 8;
+            let tile = data[base + 2];
+            let attr = data[base + 3];
+            drop(data);
+
+            let line = self.ly as i16;
+            if line < y || line >= y + sprite_height {
+                continue;
+            }
+
+            sprites.push((
+                x as u8,
+                y as u8,
+                tile,
+                SpriteAttrs {
+                    priority: attr & 0x80 != 0,
+                    y_flip: attr & 0x40 != 0,
+                    x_flip: attr & 0x20 != 0,
+                    palette1: attr & 0x10 != 0,
+                },
+            ));
+
+            if sprites.len() == 10 {
+                break;
+            }
+        }
+
+        sprites
+    }
+
+    fn render_scanline(&mut self) {
+        if (self.ly as usize) < SCREEN_HEIGHT {
+            let window_active =
+                self.lcdc.window_display_enable() && self.ly >= self.wy && self.wx <= 166;
+            let window_x_origin = self.wx.wrapping_sub(7);
+
+            let mut used_window = false;
+            let line_sprites = self.collect_line_sprites();
+
+            for x in 0..SCREEN_WIDTH {
+                let mut bg_color_id = 0;
+                if self.lcdc.bg_window_enable() {
+                    let using_window = window_active && (x as u8) >= window_x_origin;
+                    let (tile_x, tile_y, tile_map_base, unsigned_mode) = if using_window {
+                        used_window = true;
+                        let wx = x as i16 - window_x_origin as i16;
+                        let wy = self.window_line as i16;
+                        (
+                            wx as u8,
+                            wy as u8,
+                            if self.lcdc.window_tile_map_select() {
+                                0x9C00
+                            } else {
+                                0x9800
+                            },
+                            self.lcdc.tile_data_select(),
+                        )
+                    } else {
+                        (
+                            self.scx.wrapping_add(x as u8),
+                            self.scy.wrapping_add(self.ly),
+                            if self.lcdc.bg_tile_map_select() {
+                                0x9C00
+                            } else {
+                                0x9800
+                            },
+                            self.lcdc.tile_data_select(),
+                        )
+                    };
+
+                    let tile_index = ((tile_y / 8) as u16) * 32 + (tile_x / 8) as u16;
+                    let tile_id =
+                        self.vram.borrow()[(tile_map_base + tile_index - VRAM_START) as usize];
+                    let tile_line = tile_y % 8;
+                    let x_in_tile = tile_x % 8;
+                    bg_color_id =
+                        self.fetch_tile_pixel(tile_id, tile_line, x_in_tile, unsigned_mode);
+                }
+
+                let mut final_color = self.map_palette(self.bgp, bg_color_id);
+
+                if self.lcdc.sprite_enable() {
+                    for (sprite_x, sprite_y, tile_id, attrs) in &line_sprites {
+                        let sprite_height = if self.lcdc.sprite_size() { 16 } else { 8 };
+                        if *sprite_x == 0
+                            || (x as i16) < (*sprite_x as i16)
+                            || (x as i16) >= (*sprite_x as i16 + 8)
+                        {
+                            continue;
+                        }
+
+                        let mut line = self.ly.wrapping_sub(*sprite_y);
+                        if attrs.y_flip {
+                            line = sprite_height as u8 - 1 - line;
+                        }
+
+                        let mut pixel_x = (x as u8).wrapping_sub(*sprite_x);
+                        if attrs.x_flip {
+                            pixel_x = 7 - pixel_x;
+                        }
+
+                        let mut index = *tile_id;
+                        if sprite_height == 16 {
+                            index &= 0xFE;
+                            if line >= 8 {
+                                index = index.wrapping_add(1);
+                            }
+                            line %= 8;
+                        }
+
+                        let color_id = self.fetch_tile_pixel(index, line, pixel_x, true);
+                        if color_id == 0 {
+                            continue;
+                        }
+
+                        if attrs.priority && self.lcdc.bg_window_enable() && bg_color_id != 0 {
+                            break;
+                        }
+
+                        let palette = if attrs.palette1 { self.obp1 } else { self.obp0 };
+                        final_color = self.map_palette(palette, color_id);
+                        break;
+                    }
+                }
+
+                self.viewport_buffer[self.ly as usize][x] = final_color.to_u32();
+            }
+
+            if window_active && used_window {
+                self.window_line = self.window_line.wrapping_add(1);
+            }
+        }
+    }
+
+    fn step(&mut self) {
+        if !self.lcdc.lcd_display_enable() {
+            self.disable_lcd();
+            return;
+        }
+
+        if !self.lcd_enabled {
+            self.enable_lcd();
+            return;
+        }
+
+        self.dots += 1;
+
+        match self.mode {
+            PpuMode::OamScan => {
+                if self.dots == OAM_CYCLES {
+                    self.mode = PpuMode::Drawing;
+                    self.stat.update(self.mode, self.ly, self.lyc);
+                }
+            }
+            PpuMode::Drawing => {
+                if self.dots == OAM_CYCLES + TRANSFER_CYCLES {
+                    self.render_scanline();
+                    self.mode = PpuMode::HBlank;
+                    self.stat.update(self.mode, self.ly, self.lyc);
+                    self.request_stat_if(self.stat.mode_0_stat_interrupt_enable());
+                }
+            }
+            PpuMode::HBlank => {
+                if self.dots == SCANLINE_CYCLES {
+                    self.dots = 0;
+                    self.ly = self.ly.wrapping_add(1);
+                    self.handle_lyc();
+
+                    if self.ly == 144 {
+                        self.mode = PpuMode::VBlank;
+                        self.updated = true;
+                        self.if_.borrow_mut().set(Flags::VBlank);
+                        self.request_stat_if(self.stat.mode_1_stat_interrupt_enable());
+                    } else {
+                        self.mode = PpuMode::OamScan;
+                        self.request_stat_if(self.stat.mode_2_stat_interrupt_enable());
+                    }
+
+                    self.stat.update(self.mode, self.ly, self.lyc);
+                }
+            }
+            PpuMode::VBlank => {
+                if self.dots == SCANLINE_CYCLES {
+                    self.dots = 0;
+                    self.ly = self.ly.wrapping_add(1);
+                    self.handle_lyc();
+
+                    if self.ly > 153 {
+                        self.ly = 0;
+                        self.window_line = 0;
+                        self.mode = PpuMode::OamScan;
+                        self.stat.update(self.mode, self.ly, self.lyc);
+                        self.request_stat_if(self.stat.mode_2_stat_interrupt_enable());
+                    } else {
+                        self.stat.update(self.mode, self.ly, self.lyc);
+                    }
+                }
+            }
+        }
     }
 }
 
 impl Memory for Ppu {
     fn read8(&self, addr: u16) -> u8 {
         match addr {
-            0x8000..=0x9FFF => {
-                // VRAM Operations only allowed in H-Blank, V-Blank and OAM Scan modes.
-                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
-                if self.mode != PpuMode::Drawing {
-                    self.vram.borrow()[(addr - 0x8000) as usize]
-                } else {
-                    UNDEFINED_READ
+            VRAM_START..=VRAM_END => {
+                if self.mode == PpuMode::Drawing {
+                    return UNDEFINED_READ;
                 }
+                self.vram.borrow()[(addr - VRAM_START) as usize]
             }
-            0xFE00..=0xFE9F => {
-                // OAM Operations only allowed in H-Blank and V-Blank modes.
-                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
-                if self.mode == PpuMode::HBlank || self.mode == PpuMode::VBlank {
-                    self.oam.borrow()[(addr - 0xFE00) as usize]
-                } else {
-                    UNDEFINED_READ
+            OAM_START..=OAM_END => {
+                if matches!(self.mode, PpuMode::Drawing | PpuMode::OamScan) {
+                    return UNDEFINED_READ;
                 }
+                self.oam.borrow()[(addr - OAM_START) as usize]
             }
             0xFF40 => self.lcdc.data,
             0xFF41 => self.stat.data,
             0xFF42 => self.scy,
             0xFF43 => self.scx,
             0xFF44 => self.ly,
+            0xFF45 => self.lyc,
+            0xFF46 => UNDEFINED_READ,
             0xFF47 => self.bgp,
             0xFF48 => self.obp0,
             0xFF49 => self.obp1,
@@ -663,219 +521,60 @@ impl Memory for Ppu {
 
     fn write8(&mut self, addr: u16, val: u8) {
         match addr {
-            0x8000..=0x9FFF => {
-                // VRAM Operations only allowed in H-Blank, V-Blank and OAM Scan modes.
-                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
+            VRAM_START..=VRAM_END => {
                 if self.mode != PpuMode::Drawing {
-                    self.vram.borrow_mut()[(addr - 0x8000) as usize] = val;
+                    self.vram.borrow_mut()[(addr - VRAM_START) as usize] = val;
                 }
             }
-            0xFE00..=0xFE9F => {
-                // OAM Operations only allowed in H-Blank and V-Blank modes.
-                // https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html
-                if self.mode == PpuMode::HBlank || self.mode == PpuMode::VBlank {
-                    self.oam.borrow_mut()[(addr - 0xFE00) as usize] = val;
+            OAM_START..=OAM_END => {
+                if !matches!(self.mode, PpuMode::Drawing | PpuMode::OamScan) {
+                    self.oam.borrow_mut()[(addr - OAM_START) as usize] = val;
                 }
             }
             0xFF40 => {
+                let was_enabled = self.lcdc.lcd_display_enable();
                 self.lcdc.set(val);
+                if was_enabled && !self.lcdc.lcd_display_enable() {
+                    self.disable_lcd();
+                } else if !was_enabled && self.lcdc.lcd_display_enable() {
+                    self.enable_lcd();
+                }
             }
             0xFF41 => {
-                self.stat.set(val & 0xF8);
+                self.stat.set(val);
             }
-            0xFF42 => {
-                self.scy = val;
-            }
-            0xFF43 => {
-                self.scx = val;
-            }
+            0xFF42 => self.scy = val,
+            0xFF43 => self.scx = val,
             0xFF44 => {
-                //self.ly = 0;
-                warn!("Ignoring write to LY register, as this is read-only.");
+                // Read only
             }
-            0xFF47 => {
-                self.bgp = val;
+            0xFF45 => {
+                self.lyc = val;
+                self.handle_lyc();
             }
-            0xFF48 => {
-                self.obp0 = val;
-            }
-            0xFF49 => {
-                self.obp1 = val;
-            }
-            0xFF4A => {
-                self.wy = val;
-            }
-            0xFF4B => {
-                self.wx = val;
-            }
-            _ => warn!("Ignoring write to PPU register {:04X}", addr),
+            0xFF47 => self.bgp = val,
+            0xFF48 => self.obp0 = val,
+            0xFF49 => self.obp1 = val,
+            0xFF4A => self.wy = val,
+            0xFF4B => self.wx = val,
+            _ => {}
         }
     }
 
     fn read16(&self, addr: u16) -> u16 {
-        u16::from(self.read8(addr)) | (u16::from(self.read8(addr + 1)) << 8)
+        u16::from(self.read8(addr)) | (u16::from(self.read8(addr.wrapping_add(1))) << 8)
     }
 
     fn write16(&mut self, addr: u16, val: u16) {
         self.write8(addr, (val & 0xFF) as u8);
-        self.write8(addr + 1, (val >> 8) as u8);
+        self.write8(addr.wrapping_add(1), (val >> 8) as u8);
     }
 
     fn cycle(&mut self, cycles: u32) -> u32 {
-        // Check if LCD is enabled
-        if !self.ldc_on {
-            if !self.lcdc.lcd_display_enable() {
-                return 0;
-            } else {
-                self.ldc_on = true;
-                self.mode = PpuMode::OamScan;
-                if self.stat.mode_2_stat_interrupt_enable() {
-                    self.if_.borrow_mut().set(Flags::LCDStat);
-                }
-            }
-        } else if !self.lcdc.lcd_display_enable() {
-            // Turn LDC off and reset PPU
-            self.ldc_on = false;
-            self.ly = 0;
-            self.x = 0;
-            return 0;
-        }
-
-        // Since the screen is on, keep counting ticks for each CPU cycle.
         for _ in 0..cycles {
-            self.ticks += 1;
-
-            // Which PPU mode are we in?
-            match self.mode {
-                PpuMode::HBlank => {
-                    // Nothing much to do here but wait the proper number of clock cycles.
-                    // A full scanline takes 456 clock cycles to complete. At the end of a
-                    // scanline, the PPU goes back to the initial OAM Search state.
-                    // When we reach line 144, we switch to VBlank state instead.
-                    if self.ticks == 456 {
-                        self.ticks = 0;
-                        self.ly += 1;
-
-                        if self.ly == 144 {
-                            self.mode = PpuMode::VBlank;
-                            self.updated = true;
-
-                            // Check if we need to request a STAT interrupt
-                            if self.stat.mode_0_stat_interrupt_enable() {
-                                self.if_.borrow_mut().set(Flags::LCDStat);
-                            }
-
-                            // Request VBlank interrupt
-                            self.if_.borrow_mut().set(Flags::VBlank);
-                        } else {
-                            self.mode = PpuMode::OamScan;
-
-                            // Check if we need to request a STAT interrupt
-                            if self.stat.mode_2_stat_interrupt_enable() {
-                                self.if_.borrow_mut().set(Flags::LCDStat);
-                            }
-                        }
-                    }
-                }
-                PpuMode::VBlank => {
-                    // Nothing much to do here either. VBlank is when the CPU is supposed to
-                    // do stuff that takes time. It takes as many cycles as would be needed
-                    // to keep displaying scanlines up to line 153.
-                    if self.ticks == 456 {
-                        self.ticks = 0;
-                        self.ly += 1;
-
-                        if self.ly == 153 {
-                            // End of VBlank, back to initial state.
-                            self.ly = 0;
-                            self.mode = PpuMode::OamScan;
-
-                            // Check if we need to request a STAT interrupt
-                            if self.stat.mode_1_stat_interrupt_enable() {
-                                self.if_.borrow_mut().set(Flags::LCDStat);
-                            }
-                        }
-                    }
-                }
-                PpuMode::OamScan => {
-                    // In this state, the PPU would scan the OAM (Objects Attribute Memory)
-                    // from 0xfe00 to 0xfe9f to mix sprite pixels in the current line later.
-                    // This always takes 40 clock ticks.
-
-                    //
-                    // TODO: OAM search will happen here (when implemented).
-                    //
-
-                    if self.ticks == 40 {
-                        // Move to Pixel Transfer state. Initialize the fetcher to start
-                        // reading background tiles from VRAM. We don't do scrolling yet
-                        // and the boot ROM does nothing fancy with map addresses, so we
-                        // just give the fetcher the base address of the row of tiles we
-                        // need in video RAM:
-                        //
-                        // - The background map is 32×32 tiles big.
-                        // - The viewport starts at the top left of that map when LY is 0.
-                        // - Each tile is 8×8 pixels.
-                        //
-                        // In the present case, we only need to figure out in which row of
-                        // the background map our current line (at position LY) is. Then we
-                        // start fetching pixels from that row's address in VRAM, and for
-                        // each tile, we can tell which 8-pixel line to fetch by computing
-                        // LY modulo 8.
-                        let y = self.scy.wrapping_add(self.ly);
-                        self.x = 0;
-                        let tile_line = y % 8;
-                        let tile_map_row_adder = 0x9800 + (((y / 8) as u16) * 32);
-                        self.fetcher.start(tile_map_row_adder, tile_line);
-
-                        self.mode = PpuMode::Drawing;
-                    }
-                }
-                PpuMode::Drawing => {
-                    // Fetch pixel data from our pixel FIFO
-                    self.fetcher.tick();
-
-                    // Stop here if the FIFO isn't holding at least 8 pixels.
-                    // NOTE: This will be used to mix in sprite data when we implement these.
-                    // It also guarantees the FIFO will always have data to Pop() later.
-                    if self.fetcher.fifo.size() < 8 {
-                        continue;
-                    }
-
-                    // Put a pixel from the FIFO in the render buffer
-                    let raw_pixel_color = self.fetcher.fifo.pop();
-                    let palette_color = (self.bgp >> (raw_pixel_color * 2)) & 0x03;
-                    let pixel_color = Color::from_u8(palette_color);
-                    self.viewport_buffer[self.ly as usize][self.x as usize] = pixel_color.to_u32();
-
-                    // Check when scan line is finished
-                    self.x += 1;
-                    if self.x == 160 {
-                        // Switch mode to HBlank
-                        self.mode = PpuMode::HBlank;
-
-                        if self.stat.mode_0_stat_interrupt_enable() {
-                            self.if_.borrow_mut().set(Flags::LCDStat);
-                        }
-                    }
-                }
-            }
+            self.step();
         }
-
-        // Update STAT register
-        let ppu_mode = self.mode;
-        let ppu_ly = self.ly;
-        let ppu_lyc = self.lyc;
-        self.stat.update(ppu_mode, ppu_ly, ppu_lyc);
-
-        //todo!("PPU is a WIP, plz try again soon <3");
-
-        //self.ticks
-        match self.mode {
-            PpuMode::HBlank => HBLANK_CYCLES,
-            PpuMode::VBlank => VBLANK_CYCLES,
-            PpuMode::OamScan => ACCESS_OAM_CYCLES,
-            PpuMode::Drawing => ACCESS_VRAM_CYCLES,
-        }
+        self.stat.update(self.mode, self.ly, self.lyc);
+        cycles
     }
 }
