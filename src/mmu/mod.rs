@@ -240,7 +240,9 @@ impl Memory for Mmu {
 
     /// Read a word (u16) from memory
     fn read16(&self, addr: u16) -> u16 {
-        u16::from(self.read8(addr)) | (u16::from(self.read8(addr + 1)) << 8)
+        let lo = self.read8(addr);
+        let hi = self.read8(addr.wrapping_add(1));
+        u16::from(lo) | (u16::from(hi) << 8)
         /*let lo = self.read8(addr);
         let hi = self.read8(addr + 1);
         u16::from_le_bytes([lo, hi])*/
@@ -253,7 +255,7 @@ impl Memory for Mmu {
             val, addr
         );
         self.write8(addr, (val & 0xFF) as u8);
-        self.write8(addr + 1, (val >> 8) as u8);
+        self.write8(addr.wrapping_add(1), (val >> 8) as u8);
     }
 
     fn cycle(&mut self, ticks: u32) -> u32 {
