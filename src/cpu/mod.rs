@@ -48,7 +48,7 @@ impl Cpu {
         // 5. Jump to the starting address of the interrupt.
 
         // If CPU is halted and interrupts are disabled, do nothing.
-        if !self.halt && !self.ime {
+        if self.halt && !self.ime {
             return 0;
         }
 
