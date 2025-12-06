@@ -27,7 +27,12 @@ impl Cpu {
             0x00 => {}
 
             // 0x10 - STOP
-            0x10 => {}
+            0x10 => {
+                // Until joypad wake-up handling exists, treat STOP as HALT so
+                // the CPU pauses instead of continuing to execute instructions
+                // unexpectedly.
+                self.halt = true;
+            }
 
             // 0x76 - HALT
             0x76 => {
@@ -37,13 +42,18 @@ impl Cpu {
             // 0xF3 - DI - Disable interrupts
             // NOTE: The IME should be changed not immediately, but after this instruction executes.
             0xF3 => {
+                // DI takes effect after the instruction finishes, so clear any
+                // pending enables and disable IME immediately after
+                // execution.
+                self.ime_enable_delay = None;
                 self.ime = false;
             }
 
             // 0xFB - EI - Enable interrupts
             // NOTE: The IME should be changed not immediately, but after this instruction executes.
             0xFB => {
-                self.ime = true;
+                // EI enables IME after the *next* instruction completes.
+                self.ime_enable_delay = Some(1);
             }
 
             // LD r8, d8

@@ -75,7 +75,6 @@ impl Timer {
                         0x03 => 256,
                         _ => panic!(""),
                     };
-                    self.reg.tima = self.reg.tma;
                 }
                 self.reg.tac = v;
             }

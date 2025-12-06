@@ -23,6 +23,11 @@ pub struct Cpu {
     /// Interrupt Master Enable Flag (IME)
     ime: bool,
 
+    /// Delayed IME enable. EI takes effect after the following instruction has
+    /// completed, so we track a small countdown to flip the IME flag at the
+    /// right time.
+    ime_enable_delay: Option<u8>,
+
     /// Halt flag, for stopping CPU operation.
     halt: bool,
 }
@@ -138,12 +143,21 @@ impl Cpu {
             mem,
             boot_rom_enabled: true,
             ime: false,
+            ime_enable_delay: None,
             halt: false,
         }
     }
 
     /// Cycle the CPU for a single instruction - Fetch, decode, execute
     pub fn cycle(&mut self) -> u32 {
+        // Apply any pending IME changes that should become active before we
+        // fetch the next instruction (for example, after the instruction
+        // following EI has completed).
+        if let Some(0) = self.ime_enable_delay {
+            self.ime = true;
+            self.ime_enable_delay = None;
+        }
+
         //self._debug_print_state();
         let mut ticks = 0;
 
@@ -151,6 +165,15 @@ impl Cpu {
         if !self.halt {
             let op = self.fetch();
             ticks += self.op_execute(op);
+
+            // Update delayed IME state for EI. The enable happens after the
+            // *next* instruction, so we tick the delay down once per
+            // instruction boundary.
+            if let Some(delay) = self.ime_enable_delay.as_mut() {
+                if *delay > 0 {
+                    *delay -= 1;
+                }
+            }
         } else {
             info!("CPU halted!");
             ticks += 1;
