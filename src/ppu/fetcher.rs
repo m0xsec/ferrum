@@ -33,6 +33,9 @@ pub struct Fetcher {
     /// Start address of BG/Sprite tile data.
     data_addr: u16,
 
+    /// Tile data addressing mode (true = 0x8000 unsigned, false = 0x8800 signed).
+    tile_data_unsigned: bool,
+
     /// Y offset in the tile.
     tile_line: u8,
 
@@ -56,6 +59,7 @@ impl Fetcher {
             state: FetcherState::ReadTileId,
             map_addr: 0,
             data_addr: 0,
+            tile_data_unsigned: true,
             tile_line: 0,
             tile_index: 0,
             tile_id: 0,
@@ -63,11 +67,13 @@ impl Fetcher {
         }
     }
 
-    /// Start fetching a lin of pixels, starting at the given tile address in the background map.
+    /// Start fetching a line of pixels, starting at the given tile address in the background map.
     /// tile_line indicates which row of pixels to fetch from the tile.
-    pub fn start(&mut self, map_addr: u16, tile_line: u8) {
+    /// tile_data_unsigned: true = 0x8000 method (unsigned), false = 0x8800 method (signed).
+    pub fn start(&mut self, map_addr: u16, tile_line: u8, tile_data_unsigned: bool) {
         self.map_addr = map_addr;
         self.tile_line = tile_line;
+        self.tile_data_unsigned = tile_data_unsigned;
         self.tile_index = 0;
         self.state = FetcherState::ReadTileId;
 
@@ -129,9 +135,16 @@ impl Fetcher {
     /// Each pixel requires 2 bits of information, which gets read in two separate steps.
     pub fn read_tile_line(&mut self, bit_plane: u8) {
         // A tile's graphical data takes 16 bytes (2 bytes per row of 8 pixels).
-        // Tile data starts at address 0x8000 so we first compute an offset to
-        // find out where the data for the tile we want starts.
-        let offset = 0x8000 + (self.tile_id as u16 * 16);
+        // Two addressing modes exist:
+        //   - 0x8000 method (LCDC.4=1): tile_id is unsigned (0-255), base at 0x8000
+        //   - 0x8800 method (LCDC.4=0): tile_id is signed (-128..127), base at 0x9000
+        let offset = if self.tile_data_unsigned {
+            0x8000u16.wrapping_add(self.tile_id as u16 * 16)
+        } else {
+            // Signed: tile_id 0-127 maps to 0x9000-0x97FF,
+            //         tile_id 128-255 maps to 0x8800-0x8FFF
+            0x9000u16.wrapping_add((self.tile_id as i8 as i16 * 16) as u16)
+        };
 
         // Then, from that starting offset, we compute the final address to read
         // by finding out which of the 8-pixel rows of the tile we want to display.

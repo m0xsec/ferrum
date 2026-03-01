@@ -1,6 +1,7 @@
 use crate::boot::BOOTROM;
 use crate::cartridge;
 use crate::cartridge::Cartridge;
+use crate::joypad::{Joypad, JoypadButton};
 use crate::ppu::Ppu;
 use crate::timer::Timer;
 
@@ -51,6 +52,9 @@ pub struct Mmu {
     /// Gameboy PPU
     ppu: Ppu,
 
+    /// Gameboy Joypad
+    joypad: Joypad,
+
     /// Video RAM (VRAM) - In CGB mode, switchable bank 0/1.
     //vram: [u8; (0x9FFF - 0x8000) + 1],
 
@@ -85,6 +89,7 @@ impl Mmu {
         let interrupt_flags = Rc::new(RefCell::new(InterruptFlags::new()));
         let timer = Timer::new(interrupt_flags.clone());
         let ppu = Ppu::new(interrupt_flags.clone());
+        let joypad = Joypad::new(interrupt_flags.clone());
 
         // Randomize WRAM and HRAM, per Pan docs
         // https://gbdev.io/pandocs/Power_Up_Sequence.html#common-remarks
@@ -106,6 +111,7 @@ impl Mmu {
             cartridge,
             timer,
             ppu,
+            joypad,
             //vram: [0x00; (0x9FFF - 0x8000) + 1],
             wram0,
             wramx,
@@ -130,6 +136,16 @@ impl Mmu {
 
     pub fn ppu_get_viewport(&mut self) -> &Vec<Vec<u32>> {
         &self.ppu.viewport_buffer
+    }
+
+    /// Press a joypad button.
+    pub fn joypad_press(&mut self, button: JoypadButton) {
+        self.joypad.press(button);
+    }
+
+    /// Release a joypad button.
+    pub fn joypad_release(&mut self, button: JoypadButton) {
+        self.joypad.release(button);
     }
 }
 
@@ -161,11 +177,11 @@ impl Memory for Mmu {
             0xFE00..=0xFE9F => self.ppu.read8(addr),
             0xFF00..=0xFF7F => {
                 match addr {
-                    // TODO: Implement the rest of the IO registers.
-                    0xFF0F => {
-                        // Interrupt Flags
-                        self.if_.borrow().data
-                    }
+                    // Joypad Register
+                    0xFF00 => self.joypad.read(),
+
+                    // Interrupt Flags
+                    0xFF0F => self.if_.borrow().data,
 
                     // Timer Registers
                     0xFF04..=0xFF07 => self.timer.get(addr),
@@ -173,8 +189,6 @@ impl Memory for Mmu {
                     // PPU Registers
                     0xFF40..=0xFF4B => self.ppu.read8(addr),
 
-                    // Stub LY, for testing.
-                    //0xFF44 => 0x90,
                     _ => self.io[addr as usize - 0xFF00],
                 }
             }
@@ -206,9 +220,11 @@ impl Memory for Mmu {
             0xFE00..=0xFE9F => self.ppu.write8(addr, val),
             0xFF00..=0xFF7F => {
                 match addr {
-                    //TODO: Implement the rest of the IO registers.
+                    // Joypad Register
+                    0xFF00 => self.joypad.write(val),
+
+                    // Interrupt Flags
                     0xFF0F => {
-                        // Interrupt Flags
                         self.if_.borrow_mut().data = val;
                     }
                     // Intercept Serial writes, and output to stdout.
@@ -222,6 +238,18 @@ impl Memory for Mmu {
                     // Timer Registers
                     0xFF04..=0xFF07 => {
                         self.timer.set(addr, val);
+                    }
+
+                    // OAM DMA Transfer
+                    // Writing to this register starts a DMA transfer from ROM/RAM to OAM.
+                    // Source: val * 0x100, Destination: 0xFE00-0xFE9F (160 bytes)
+                    // https://gbdev.io/pandocs/OAM_DMA_Transfer.html
+                    0xFF46 => {
+                        let source = (val as u16) << 8;
+                        for i in 0..0xA0u16 {
+                            let byte = self.read8(source + i);
+                            self.ppu.write8(0xFE00 + i, byte);
+                        }
                     }
 
                     // PPU Registers

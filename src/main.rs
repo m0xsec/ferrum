@@ -5,6 +5,7 @@ mod boot;
 mod cartridge;
 mod cpu;
 mod gb;
+mod joypad;
 mod mmu;
 mod ppu;
 mod timer;
