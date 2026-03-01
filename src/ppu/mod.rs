@@ -307,7 +307,7 @@ impl Lcdc {
     /// This bit controls which Background Map is used to determine the tile numbers of the tiles displayed in the Window layer.
     /// If it is set to 1, the background map located at $9C00-$9FFF is used, otherwise it uses the one at $9800-$9BFF.
     fn window_tile_map_select(&self) -> bool {
-        self.data * (1 << 6) != 0
+        self.data & (1 << 6) != 0
     }
 
     /// LCDC.5 - Window Display Enable
@@ -322,7 +322,7 @@ impl Lcdc {
     /// This bit determines which addressing mode to use for fetching Tile Data.
     /// If it is set to 1, the 8000 method is used. Otherwise, the 8800 method is used.
     fn tile_data_select(&self) -> bool {
-        self.data * (1 << 4) != 0
+        self.data & (1 << 4) != 0
     }
 
     /// LCDC.3 - BG Tile Map Select
@@ -652,6 +652,7 @@ impl Memory for Ppu {
             0xFF42 => self.scy,
             0xFF43 => self.scx,
             0xFF44 => self.ly,
+            0xFF45 => self.lyc,
             0xFF47 => self.bgp,
             0xFF48 => self.obp0,
             0xFF49 => self.obp1,
@@ -679,6 +680,10 @@ impl Memory for Ppu {
             }
             0xFF40 => {
                 self.lcdc.set(val);
+                // Sync layer enable flags with LCDC register bits
+                self.bg_enabled = self.lcdc.bg_window_enable();
+                self.window_enabled = self.lcdc.window_display_enable();
+                self.sprite_enabled = self.lcdc.sprite_enable();
             }
             0xFF41 => {
                 self.stat.set(val & 0xF8);
@@ -692,6 +697,9 @@ impl Memory for Ppu {
             0xFF44 => {
                 //self.ly = 0;
                 warn!("Ignoring write to LY register, as this is read-only.");
+            }
+            0xFF45 => {
+                self.lyc = val;
             }
             0xFF47 => {
                 self.bgp = val;
@@ -824,8 +832,17 @@ impl Memory for Ppu {
                     let y = self.scy.wrapping_add(self.ly);
                     self.x = 0;
                     let tile_line = y % 8;
-                    let tile_map_row_adder = 0x9800 + (((y / 8) as u16) * 32);
-                    self.fetcher.start(tile_map_row_adder, tile_line);
+                    // Select tile map base based on LCDC.3
+                    let tile_map_base: u16 = if self.lcdc.bg_tile_map_select() {
+                        0x9C00
+                    } else {
+                        0x9800
+                    };
+                    let tile_map_row_addr = tile_map_base + (((y / 8) as u16) * 32);
+                    // LCDC.4 determines tile data addressing mode
+                    let tile_data_unsigned = self.lcdc.tile_data_select();
+                    self.fetcher
+                        .start(tile_map_row_addr, tile_line, tile_data_unsigned);
 
                     self.mode = PpuMode::Drawing;
                 }

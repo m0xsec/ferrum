@@ -1,8 +1,8 @@
 use crate::cpu;
+use crate::joypad::JoypadButton;
 use crate::mmu;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_PIXELS, SCREEN_WIDTH};
 use log::warn;
-use minifb::KeyRepeat;
 use minifb::{Key, Window, WindowOptions};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -111,15 +111,35 @@ impl GameBoy {
             }
 
             // Handle keyboard input.
-            // TODO: Handle Gameboy Joypad input.
-            window
-                .get_keys_pressed(KeyRepeat::No)
-                .iter()
-                .for_each(|key| match key {
-                    Key::Escape => emulate = false,
-                    Key::Space => println!("hemlo <3"),
-                    _ => (),
-                });
+            // Keyboard mapping:
+            //   Arrow keys  -> D-Pad (Up, Down, Left, Right)
+            //   Z           -> A button
+            //   X           -> B button
+            //   Enter       -> Start
+            //   Backspace   -> Select
+            //   Escape      -> Quit emulator
+            let key_map: &[(Key, JoypadButton)] = &[
+                (Key::Right, JoypadButton::Right),
+                (Key::Left, JoypadButton::Left),
+                (Key::Up, JoypadButton::Up),
+                (Key::Down, JoypadButton::Down),
+                (Key::Z, JoypadButton::A),
+                (Key::X, JoypadButton::B),
+                (Key::Enter, JoypadButton::Start),
+                (Key::Backspace, JoypadButton::Select),
+            ];
+
+            for &(key, button) in key_map {
+                if window.is_key_down(key) {
+                    self.mmu.borrow_mut().joypad_press(button);
+                } else {
+                    self.mmu.borrow_mut().joypad_release(button);
+                }
+            }
+
+            if window.is_key_down(Key::Escape) {
+                emulate = false;
+            }
 
             // Maintain correct CPU speed.
             ticks -= waitticks;
